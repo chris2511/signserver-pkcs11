@@ -7,8 +7,8 @@ project(keyutils-pkcs11
 )
 find_library(keyutils keyutils)
 
-add_library(keyutils-pkcs11 MODULE pkcs11.c unavailable.c)
-add_executable(testapp test.c)
+add_library(keyutils-pkcs11 MODULE pkcs11.c unavailable.c keyutil-pkcs11.h
+    key.c key.h session.c session.h
+)
 
-target_link_libraries(testapp keyutils)
 target_link_libraries(keyutils-pkcs11 keyutils)

@@ -1,5 +1,15 @@
-#define CRYPTOKI_GNU
-#include "opensc-pkcs11.h"
+/* vi: set sw=4 ts=4 expandtab: */
+/* SPDX-License-Identifier: BSD-3-Clause */
+/*
+ * Copyright (C) 2025 Christian Hohnstaedt.
+ * All rights reserved.
+ */
+
+/* Thus file is pretty much only Copy&Paste code
+ * without useful functions
+ */
+
+#include "keyutil-pkcs11.h"
 
 #undef _CK_DECLARE_FUNCTION
 #define _CK_DECLARE_FUNCTION(name, args) \

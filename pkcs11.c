@@ -1,10 +1,20 @@
-#define CRYPTOKI_GNU
-#include "opensc-pkcs11.h"
+/* vi: set sw=4 ts=4 expandtab: */
+/* SPDX-License-Identifier: BSD-3-Clause */
+/*
+ * Copyright (C) 2025 Christian Hohnstaedt.
+ * All rights reserved.
+ */
+
+#include "keyutil-pkcs11.h"
+
+#include "session.h"
+#include "key.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <keyutils.h>
+#include <stdlib.h>
+#include <limits.h>
 
 #define INITIALIZED if (!initialized) return CKR_CRYPTOKI_NOT_INITIALIZED
 #define CHECKARG(x) if (!(x)) return CKR_ARGUMENTS_BAD;
@@ -12,59 +22,26 @@
     if (session >= MAX_SESSIONS || sessions[session].keyring == 0) \
         return CKR_SESSION_HANDLE_INVALID;
 
-#define MAX_SLOTS 128
-#define MAX_SESSIONS 128
-#define MAX_KEYS 32
 
 struct slotids {
     int n_slots;
-    ck_flags_t flags;
     ck_slot_id_t slot_ids[MAX_SLOTS];
 };
 
-struct session {
-    key_serial_t keyring;
-    long n_keys;
-    long curr_key;
-    key_serial_t keys[MAX_KEYS];
-} sessions[MAX_SESSIONS];
-
+int dbg;
 static int initialized = 0;
+struct session sessions[MAX_SESSIONS];
 
 static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
                               char *desc, int desc_len, void *data)
 {
     struct slotids *slots = data;
-    printf("KEYRING %ld %s\n", key, desc);
+    DBG("KEYRING %ld %s", key, desc);
     if (parent != 0 && strncmp(desc, "keyring;", 8u) == 0) {
         if (slots->n_slots < MAX_SLOTS)
             slots->slot_ids[slots->n_slots++] = (ck_slot_id_t)key;
     }
     return 1;
-}
-#if 0
-        struct keyctl_pkey_query query;
-        long r = keyctl_pkey_query(key, "", &query);
-        if (r == -1) {
-            printf("QUERY %ld - %s\n", r, strerror(errno));
-            return 1;
-        }
-        if (query.supported_ops & KEYCTL_SUPPORTS_ENCRYPT) {
-            printf("ENCR %ld 0x%lx %ld\n", r, query.supported_ops, query.key_size);
-#endif
-
-static int key_scanner_cb(key_serial_t parent, key_serial_t key,
-                              char *desc, int desc_len, void *data)
-{
-    struct session *sess = data;
-    printf("### KEY %ld %ld %s\n", parent, key, desc);
-    if (parent != 0 && strncmp(desc, "asymmetric;", 11u) == 0) {
-        if (sess->n_keys < MAX_KEYS) {
-            sess->keys[sess->n_keys++] = key;
-        }
-        return 1;
-    }
-    return 0;
 }
 
 const struct ck_info ckinfo = {
@@ -78,7 +55,8 @@ const struct ck_info ckinfo = {
 
 ck_rv_t C_Initialize(void *init_args)
 {
-    printf("### C_Initialize\n");
+    dbg = getenv("DEBUG") ? 1 : 0 ;
+    DBG("C_Initialize");
     memset(sessions, 0, sizeof sessions);
     initialized = 1;
     return CKR_OK;
@@ -86,7 +64,7 @@ ck_rv_t C_Initialize(void *init_args)
 
 ck_rv_t C_Finalize(void *reserved)
 {
-    printf("### C_Finalize\n");
+    DBG("C_Finalize");
     INITIALIZED;
     initialized = 0;
     return CKR_OK;
@@ -94,7 +72,7 @@ ck_rv_t C_Finalize(void *reserved)
 
 ck_rv_t C_GetInfo(struct ck_info *info)
 {
-    printf("### C_GetInfo\n");
+    DBG("C_GetInfo");
     INITIALIZED;
     CHECKARG(info);
     memcpy(info, &ckinfo, sizeof ckinfo);
@@ -107,7 +85,7 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
     INITIALIZED;
     CHECKARG(count);
 
-    printf("### C_GetSlotList %lu\n", *count);
+    DBG("C_GetSlotList %lu", *count);
     struct slotids slots = { .n_slots = 0 };
     long r = recursive_key_scan(KEY_SPEC_USER_KEYRING, keyring_scanner_cb, &slots);
     if (r < 0)
@@ -117,12 +95,11 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
             *count = slots.n_slots;
             return CKR_BUFFER_TOO_SMALL;
         }
-        printf("NSLOTS %lu\n", slots.n_slots);
         for (int i = 0; i < slots.n_slots; i++)
             slot_list[i] = slots.slot_ids[i];
     }
     *count = slots.n_slots;
-    printf("#### Endegelände %lu\n", *count);
+    DBG("No. SLots %lu", *count);
     return CKR_OK;
 }
 
@@ -144,13 +121,12 @@ static ck_rv_t keyutil_name_to_id(key_serial_t serial, char *ck_desc, size_t ck_
     return CKR_OK;
 }
 
-#define TRACE fprintf(stderr, "LINE %d\n", __LINE__);
 ck_rv_t C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
 {
     INITIALIZED;
     CHECKARG(info);
-    
-    fprintf(stderr, "### C_GetSlotInfo %lu\n", slot_id);
+
+    DBG("Slot ID %lu", slot_id);
 
     memset(info, 0, sizeof *info);
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
@@ -164,7 +140,7 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
 {
     INITIALIZED;
     CHECKARG(info);
-    fprintf(stderr, "### C_GetTokenInfo %lu\n", slot_id);
+    DBG("Slot ID %lu", slot_id);
     memset(info, 0, sizeof *info);
 
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
@@ -194,7 +170,7 @@ ck_rv_t C_OpenSession( ck_slot_id_t slot_id, ck_flags_t flags,
 {
     INITIALIZED;
     CHECKARG(session);
-    fprintf(stderr, "### C_OpenSession %lu\n", slot_id);
+    DBG("Slot ID %lu", slot_id);
     if (flags & CKF_SERIAL_SESSION == 0)
         return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
     if (flags & CKF_RW_SESSION == 0)
@@ -213,19 +189,19 @@ ck_rv_t C_OpenSession( ck_slot_id_t slot_id, ck_flags_t flags,
 ck_rv_t C_CloseSession(ck_session_handle_t session)
 {
     INITIALIZED;
-    fprintf(stderr, "### C_CloseSession %lu\n", session);
+    DBG("Session %lu", session);
     CHECK_SESSION(session);
-    memset(sessions +session, 0, sizeof(struct session));
+    session_free(sessions +session);
     return CKR_OK;
 }
 
 ck_rv_t C_CloseAllSessions(ck_slot_id_t slot_id)
 {
     INITIALIZED;
-    fprintf(stderr, "### C_CloseAllSessions %lu\n", slot_id);
+    DBG("CloseAllSessions %lu", slot_id);
     for (int i = 0; i < MAX_SESSIONS; i++) {
-        if (sessions[i].keyring == (key_serial_t)slot_id) 
-            memset(sessions +i, 0, sizeof(struct session));
+        if (sessions[i].keyring == (key_serial_t)slot_id)
+            session_free(sessions +i);
     }
     return CKR_OK;
 }
@@ -242,20 +218,20 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     struct session *sess = sessions +session;
     key_serial_t keyring = sess->keyring;
 
-    if (sess->n_keys > 0)
+    if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
 
-    fprintf(stderr, "### C_FindObjectsInit %lu %lu %lu\n", session, keyring, count);
+    DBG("C_FindObjectsInit %lu %lu %lu", session, keyring, count);
+    ck_rv_t r = session_load_keys(sess, keyring);
+    if (r != CKR_OK)
+        return r;
     for (unsigned long i = 0; i < count; i++) {
-        fprintf(stderr, "### Attribute %lu %lu\n", templ[i].type, templ[i].value_len);
+        DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
     }
-    
-    struct slotids slots = { .n_slots = 0 };
-    long r = recursive_key_scan(keyring, key_scanner_cb, sess);
-    if (r < 0)
-        return CKR_GENERAL_ERROR;
-    printf("#### Endegelände %lu\n", r);
-    
+
+    DBG("Objects found %lu", sess->n_keys);
+    sess->curr_key = 0;
+    sess->curr_op = 1;
     return CKR_OK;
 }
 
@@ -268,13 +244,17 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
     CHECK_SESSION(session);
     CHECKARG(object_count);
     CHECKARG(object);
-    fprintf(stderr, "### C_FindObjects %lu %lu %lu\n", session, max_object_count);    
+    DBG("Session:%lu Max objects:%lu", session, max_object_count);
     struct session *sess = sessions +session;
-    if (max_object_count > sess->n_keys - sess->curr_key)
-        max_object_count = sess->n_keys - sess->curr_key;
-    
+
+    if (sess->curr_op != 1)
+        return CKR_OPERATION_NOT_INITIALIZED;
+
+    if (max_object_count > sess->n_keys - session_curr_key_pos(sess))
+        max_object_count = sess->n_keys - session_curr_key_pos(sess);
+
     for (unsigned long i = 0; i < max_object_count; i++) {
-        object[i] = sess->keys[sess->curr_key++];
+        object[i] = session_next_key(sess)->key;
     }
     *object_count = max_object_count;
     return CKR_OK;
@@ -284,14 +264,151 @@ ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
 {
     INITIALIZED;
     CHECK_SESSION(session);
-    fprintf(stderr, "### C_FindObjectsFinal %lu\n", session);
-    
+    DBG("Session %lu", session);
     struct session *sess = sessions +session;
-    memset(sess->keys, 0, sizeof sess->keys);   
-    sess->n_keys = 0;
-    sess->curr_key = 0;
+
+    if (sess->curr_op != 1)
+        return CKR_OPERATION_NOT_INITIALIZED;
+    sess->curr_key = NULL;
+    sess->curr_op = 0;
 
     return CKR_OK;
+}
+
+ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
+    ck_object_handle_t object, struct ck_attribute *templ, unsigned long count)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    CHECKARG(templ);
+    struct session *sess = sessions +session;
+    unsigned long i;
+
+    DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
+
+    struct key *key = session_find_key(sess, object);
+    if (!key)
+        return CKR_OBJECT_HANDLE_INVALID;
+
+    if (key->n_attributes == 0) {
+        ck_rv_t r = key_collect_attributes(key);
+        if (r != CKR_OK)
+            return r;
+    }
+    for (i = 0; i < count; i++) {
+        DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
+        unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
+        for (unsigned long j = 0; j<key->n_attributes; j++) {
+            if (key->attributes[j].type != templ[i].type)
+                continue;
+            if (!templ[i].value) {
+                new_len = key->attributes[j].value_len;
+            } else {
+                if (templ[i].value_len >= key->attributes[j].value_len) {
+                    new_len = key->attributes[j].value_len;
+                    memcpy(templ[i].value, key->attributes[j].value, new_len);
+                }
+            }
+        }
+        templ[i].value_len = new_len;
+    }
+    return CKR_OK;
+}
+
+ck_rv_t C_GetMechanismList(ck_slot_id_t slot_id,
+        ck_mechanism_type_t *mechanism_list, unsigned long *count)
+{
+    INITIALIZED;
+    CHECKARG(count);
+    DBG("Slot ID %lu No. Mechs: %ld", slot_id, n_mechs);
+
+    if (mechanism_list) {
+        if (*count < n_mechs) {
+            *count = n_mechs;
+            return CKR_BUFFER_TOO_SMALL;
+        }
+        memcpy(mechanism_list, rsa_mechs, n_mechs * sizeof(ck_mechanism_type_t));
+    }
+    *count = n_mechs;
+    return CKR_OK;
+}
+
+ck_rv_t C_GetMechanismInfo(ck_slot_id_t slot_id,
+        ck_mechanism_type_t type, struct ck_mechanism_info *info)
+{
+    INITIALIZED;
+    CHECKARG(info);
+    DBG("Slot ID %lu Mechanism: %lu", slot_id, type);
+    memset(info, 0, sizeof *info);
+    info->flags = CKF_HW | CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY;
+    return CKR_OK;
+}
+
+ck_rv_t C_SignInit(ck_session_handle_t session,
+        struct ck_mechanism *mechanism, ck_object_handle_t key_id)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    CHECKARG(mechanism);
+    struct session *sess = sessions +session;
+    DBG("Session: %lu Key: %lu", session, key_id);
+
+    if (sess->curr_op != 0)
+        return CKR_OPERATION_ACTIVE;
+
+    struct key *key = session_find_key(sess, key_id);
+    sess->curr_op = 1;
+    if (!key)
+        return CKR_OBJECT_HANDLE_INVALID;
+    key->data_len = 0;
+    return key_mechanism_dup(key, mechanism);
+}
+
+ck_rv_t C_SignUpdate(ck_session_handle_t session,
+        unsigned char *part, unsigned long part_len)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    CHECKARG(part);
+    CHECKARG(part_len);
+    struct session *sess = sessions +session;
+    struct key *key = session_curr_key(sess);
+
+    if (sess->curr_op != 1 || !key)
+        return CKR_OPERATION_NOT_INITIALIZED;
+
+    return key_data_add(key, part, part_len);
+}
+
+ck_rv_t C_SignFinal(ck_session_handle_t session,
+        unsigned char *signature, unsigned long *signature_len)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    CHECKARG(signature);
+    CHECKARG(signature_len);
+    struct session *sess = sessions +session;
+
+    DBG("Session: %lu", session);
+    struct key *key = session_curr_key(sess);
+    if (!key)
+        return CKR_OBJECT_HANDLE_INVALID;
+    if (sess->curr_op != 1)
+        return CKR_OPERATION_NOT_INITIALIZED;
+
+    ck_rv_t r = key_sign(key, signature, signature_len);
+    sess->curr_op = 0;
+    return r;
+}
+
+ck_rv_t C_Sign(ck_session_handle_t session,
+        unsigned char *data, unsigned long data_len,
+        unsigned char *signature, unsigned long *signature_len)
+{
+    ck_rv_t r = C_SignUpdate(session, data, data_len);
+    if (r == CKR_OK)
+        r = C_SignFinal(session, signature, signature_len);
+    return r;
 }
 
 ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
@@ -312,6 +429,13 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
     fl->C_FindObjectsInit = C_FindObjectsInit;
     fl->C_FindObjects = C_FindObjects;
     fl->C_FindObjectsFinal = C_FindObjectsFinal;
+    fl->C_GetAttributeValue = C_GetAttributeValue;
+    fl->C_GetMechanismList = C_GetMechanismList;
+    fl->C_GetMechanismInfo = C_GetMechanismInfo;
+    fl->C_SignInit = C_SignInit;
+    fl->C_SignFinal = C_SignFinal;
+    fl->C_SignUpdate = C_SignUpdate;
+    fl->C_Sign = C_Sign;
 
     *function_list = fl;
     return CKR_OK;
