@@ -51,6 +51,7 @@ void key_free(struct key *key)
 
 int key_init(struct key *key, key_serial_t key_id, char *desc, int desc_len)
 {
+    (void)desc_len;
     if (strncmp(desc, "asymmetric;", 11u) != 0)
         return 0;
     char *name = strrchr(desc, ';');
@@ -60,7 +61,8 @@ int key_init(struct key *key, key_serial_t key_id, char *desc, int desc_len)
     memset(key, 0, sizeof *key);
     key->key = key_id;
     key->name = strdup(name + 1);
-};
+    return 1;
+}
 
 #define INIT_ATTR(attr, _type, _len) { \
     attr.type = _type; \
@@ -80,7 +82,6 @@ int key_init(struct key *key, key_serial_t key_id, char *desc, int desc_len)
 
 ck_rv_t key_collect_attributes(struct key *key)
 {
-    char buffer[128] = "", *name;
     unsigned long n = 0;
     struct ck_attribute *templ = key->attributes;
 
@@ -90,7 +91,7 @@ ck_rv_t key_collect_attributes(struct key *key)
 
     int r = keyctl_pkey_query(key->key, "", &key->query);
     if (r == -1) {
-        printf("QUERY %ld - %s\n", r, strerror(errno));
+        printf("QUERY %d - %s\n", r, strerror(errno));
         return CKR_SLOT_ID_INVALID;
     }
     printf("QUERY %u %u %u %u\n", key->query.max_data_size,
@@ -134,8 +135,8 @@ ck_rv_t key_collect_attributes(struct key *key)
         }
     }
     key->n_attributes = n;
-    DBG("Attributes for '%s' Count:%d 0x%lx Keysize: %ld",
-         buffer, n, supported_ops, key->query.key_size);
+    DBG("Attributes for '%s' Count:%lu 0x%lx Keysize: %u",
+         key->name, n, supported_ops, key->query.key_size);
     return CKR_OK;
 }
 
@@ -146,13 +147,13 @@ ck_rv_t key_sign(struct key *key,
     long ret = keyctl_pkey_sign(key->key, "enc=raw",
         key->data, key->data_len, signature, sig_len);
     if (ret < 0) {
-        fprintf(stderr, "SIGN Error %ld - %s key:%lu(%s) in:%lu out:%lu\n", ret,
+        fprintf(stderr, "SIGN Error %ld - %s key:%d(%s) in:%lu out:%zu\n", ret,
                 strerror(errno), key->key, key->name, key->data_len, sig_len);
         return CKR_GENERAL_ERROR;
     }
 
     *signature_len = ret;
-    fprintf(stderr, "SIGN OK %ld key:%lu(%s) in:%lu out:%lu\n", ret,
+    fprintf(stderr, "SIGN OK %ld key:%d(%s) in:%lu out:%lu\n", ret,
             key->key, key->name, key->data_len, sig_len);
     
     return CKR_OK;

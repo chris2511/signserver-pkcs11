@@ -24,19 +24,21 @@
 
 
 struct slotids {
-    int n_slots;
+    unsigned long n_slots;
     ck_slot_id_t slot_ids[MAX_SLOTS];
 };
 
 int dbg;
 static int initialized = 0;
 struct session sessions[MAX_SESSIONS];
+struct ck_function_list pkcs11_function_list;
 
 static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
                               char *desc, int desc_len, void *data)
 {
+    (void)desc_len;
     struct slotids *slots = data;
-    DBG("KEYRING %ld %s", key, desc);
+    DBG("KEYRING %d %s", key, desc);
     if (parent != 0 && strncmp(desc, "keyring;", 8u) == 0) {
         if (slots->n_slots < MAX_SLOTS)
             slots->slot_ids[slots->n_slots++] = (ck_slot_id_t)key;
@@ -53,8 +55,9 @@ const struct ck_info ckinfo = {
     .library_version = { .major = 0, .minor = 1 }
 };
 
-ck_rv_t C_Initialize(void *init_args)
+ck_rv_t C_Initialize(void *init)
 {
+    (void)init;
     dbg = getenv("DEBUG") ? 1 : 0 ;
     DBG("C_Initialize");
     memset(sessions, 0, sizeof sessions);
@@ -64,6 +67,7 @@ ck_rv_t C_Initialize(void *init_args)
 
 ck_rv_t C_Finalize(void *reserved)
 {
+    (void)reserved;
     DBG("C_Finalize");
     INITIALIZED;
     initialized = 0;
@@ -82,6 +86,7 @@ ck_rv_t C_GetInfo(struct ck_info *info)
 ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
               unsigned long *count)
 {
+    (void)token_present;
     INITIALIZED;
     CHECKARG(count);
 
@@ -95,7 +100,7 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
             *count = slots.n_slots;
             return CKR_BUFFER_TOO_SMALL;
         }
-        for (int i = 0; i < slots.n_slots; i++)
+        for (unsigned long i = 0; i < slots.n_slots; i++)
             slot_list[i] = slots.slot_ids[i];
     }
     *count = slots.n_slots;
@@ -133,7 +138,7 @@ ck_rv_t C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
     info->flags = CKF_TOKEN_PRESENT;
 
     return keyutil_name_to_id((key_serial_t)slot_id,
-                    info->slot_description, sizeof(info->slot_description));
+                    (char *)info->slot_description, sizeof(info->slot_description));
 }
 
 ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
@@ -161,19 +166,21 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     info->free_private_memory = CK_UNAVAILABLE_INFORMATION;
 
     return keyutil_name_to_id((key_serial_t)slot_id,
-                    info->label, sizeof(info->label));
+                    (char *)info->label, sizeof(info->label));
 }
 
 ck_rv_t C_OpenSession( ck_slot_id_t slot_id, ck_flags_t flags,
                        void *application, ck_notify_t notify,
                        ck_session_handle_t *session)
 {
+    (void)application;
+    (void)notify;
     INITIALIZED;
     CHECKARG(session);
     DBG("Slot ID %lu", slot_id);
-    if (flags & CKF_SERIAL_SESSION == 0)
+    if ((flags & CKF_SERIAL_SESSION) == 0)
         return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
-    if (flags & CKF_RW_SESSION == 0)
+    if ((flags & CKF_RW_SESSION) == 0)
         return CKR_TOKEN_WRITE_PROTECTED;
 
     for (int i = 0; i < MAX_SESSIONS; i++) {
@@ -221,7 +228,7 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
 
-    DBG("C_FindObjectsInit %lu %lu %lu", session, keyring, count);
+    DBG("C_FindObjectsInit %lu %d %lu", session, keyring, count);
     ck_rv_t r = session_load_keys(sess, keyring);
     if (r != CKR_OK)
         return r;
@@ -230,7 +237,7 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     }
 
     DBG("Objects found %lu", sess->n_keys);
-    sess->curr_key = 0;
+    sess->curr_key = NULL;
     sess->curr_op = 1;
     return CKR_OK;
 }
@@ -285,6 +292,7 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     unsigned long i;
 
     DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
+    DBG("Curr key %p %lu", (void*)sess->curr_key, sess->n_keys);
 
     struct key *key = session_find_key(sess, object);
     if (!key)

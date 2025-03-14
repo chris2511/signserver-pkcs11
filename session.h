@@ -21,12 +21,14 @@ struct session {
     unsigned long data_len;
 };
 
-static int session_curr_key_pos(struct session *sess)
+static inline unsigned long session_curr_key_pos(struct session *sess)
 {
+    if (sess->curr_key < sess->keys)
+        return 0;
     return sess->curr_key - sess->keys;
 }
 
-static struct key *session_curr_key(struct session *sess)
+static inline struct key *session_curr_key(struct session *sess)
 {
     return sess->curr_key;
 }

@@ -20,10 +20,19 @@
 #define MAX_KEYS 32
 #define MAX_ATTRIBUTES 32
 
+#define COL_CYAN  "\x1b[36m"
+#define COL_BLUE  "\x1b[94m"
+#define COL_GREEN "\x1b[92m"
+#define COL_RED   "\x1b[31m"
+#define COL_MAGENTA "\x1b[35m"
+#define COL_BOLD  "\x1b[1m"
+#define COL_RESET "\x1b[0m"
+
 extern int dbg;
 #define DBG(...) \
     while (dbg) { \
-        fprintf(stderr, "%s(%d): ", __func__, __LINE__); \
+        fprintf(stderr, COL_MAGENTA "%s" COL_GREEN COL_BOLD ":%d " \
+                     COL_BLUE "%s() " COL_RESET , __FILE__, __LINE__, __func__); \
         fprintf(stderr, __VA_ARGS__); \
         fputs("\n", stderr); \
         break; \

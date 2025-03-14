@@ -22,12 +22,13 @@ static int key_scanner_cb(key_serial_t parent, key_serial_t key,
                           char *desc, int desc_len, void *data)
 {
     struct session *sess = data;
-    DBG("KEY %ld %ld %s", parent, key, desc);
+    DBG("KEY %d %d %s", parent, key, desc);
     int ret = 0;
-    if (sess->n_keys < MAX_KEYS || parent != 0) {
+    if (sess->n_keys < MAX_KEYS && parent != 0) {
         ret = key_init(sess->keys + sess->n_keys, key, desc, desc_len);
         if (ret > 0)
             sess->n_keys++ ;
+        DBG("KEY INIT %d  %d %lu", ret, key, sess->n_keys);
     }
     return ret;
 }
@@ -57,9 +58,12 @@ struct key *session_next_key(struct session *sess)
 
 struct key *session_find_key(struct session *sess, key_serial_t key_id)
 {
-    struct key *key = NULL;
-    while (key = session_next_key(sess)) {
+    struct key *key;
+    sess->curr_key = NULL;
+    while ((key = session_next_key(sess))) {
+        DBG("key %d, object %d", key->key, key_id);
         if (key->key == key_id)
             return key;
     }
+    return NULL;
 }

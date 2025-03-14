@@ -16,7 +16,7 @@ struct key {
     struct keyctl_pkey_query query;
     struct ck_mechanism mechanism;
     unsigned long n_attributes;
-    void *data;
+    unsigned char *data;
     unsigned long data_len;
     struct ck_attribute attributes[MAX_ATTRIBUTES];
 };
