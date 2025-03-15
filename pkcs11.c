@@ -31,26 +31,6 @@ struct session sessions[MAX_SESSIONS];
 struct slot slots[MAX_SLOTS];
 ck_slot_id_t n_slots;
 
-static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
-                              char *desc, int desc_len, void *data)
-{
-    (void)desc_len;
-    (void)data;
-    DBG("KEYRING %d %s", key, desc);
-    if (parent != 0 && strncmp(desc, "keyring;", 8u) == 0) {
-        struct slot *slot = slots + n_slots;
-        if (n_slots >= MAX_SLOTS)
-            return 0;
-        DBG("Slot (%lu) Found KEYRING %d %s", n_slots, key, desc);
-        slot->keyring = key;
-        slot->id = n_slots;
-        slot->name = strdup(desc);
-        slot_load_keys(slot);
-        n_slots++;
-    }
-    return 1;
-}
-
 const struct ck_info ckinfo = {
     .cryptoki_version = { .major = CRYPTOKI_VERSION_MAJOR,
                           .minor = CRYPTOKI_VERSION_MINOR },
@@ -64,16 +44,17 @@ ck_rv_t C_Initialize(void *init)
 {
     (void)init;
     dbg = getenv("DEBUG") ? 1 : 0 ;
-    DBG("C_Initialize");
+    DBG("C_Initialize -------- START");
     
     memset(sessions, 0, sizeof sessions);
     memset(slots, 0, sizeof slots);
     n_slots = 0;
 
-    long r = recursive_key_scan(KEY_SPEC_USER_KEYRING, keyring_scanner_cb, NULL);
-    if (r < 0)
-        return CKR_GENERAL_ERROR;
+    ck_rv_t r = slot_scan(KEY_SPEC_USER_KEYRING, slots, &n_slots);
+    if (r != CKR_OK)
+        return r;
     initialized = 1;
+    DBG("C_Initialize -------- DONE(%lu) Slots: %lu", r, n_slots);
     return CKR_OK;
 }
 
@@ -113,29 +94,14 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
             *count = n_slots;
             return CKR_BUFFER_TOO_SMALL;
         }
-        for (unsigned long i = 0; i < n_slots; i++)
+        for (unsigned long i = 0; i < n_slots; i++) {
             slot_list[i] = slots[i].id;
+            DBG("Slot ID %lu Key: %d:%s", slot_list[i],
+                slots[i].keyring, slots[i].name);
+        }
     }
     *count = n_slots;
     DBG("No. SLots %lu", *count);
-    return CKR_OK;
-}
-
-static ck_rv_t keyutil_name_to_id(key_serial_t serial, char *ck_desc, size_t ck_len)
-{
-    char buffer[128], *name;
-    int r = keyctl_describe(serial, buffer, sizeof buffer);
-    if (r < 0)
-        return CKR_SLOT_ID_INVALID;
-    name = strrchr(buffer, ';');
-    if (!name)
-        return CKR_SLOT_ID_INVALID;
-    name++;
-    size_t slen = strlen(name);
-    memset(ck_desc, ' ', ck_len);
-    if (slen > ck_len)
-        slen = ck_len;
-    memcpy(ck_desc, name, slen);
     return CKR_OK;
 }
 
@@ -151,8 +117,8 @@ ck_rv_t C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
     info->flags = CKF_TOKEN_PRESENT;
 
-    return keyutil_name_to_id((key_serial_t)slot_id,
-                    (char *)info->slot_description, sizeof(info->slot_description));
+    copy_spaced_name(slots[slot_id].name, info->slot_description, sizeof(info->slot_description));
+    return CKR_OK;
 }
 
 ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
@@ -181,8 +147,8 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     info->total_private_memory = CK_UNAVAILABLE_INFORMATION;
     info->free_private_memory = CK_UNAVAILABLE_INFORMATION;
 
-    return keyutil_name_to_id((key_serial_t)slot_id,
-                    (char *)info->label, sizeof(info->label));
+    copy_spaced_name(slots[slot_id].name, info->label, sizeof(info->label));
+    return CKR_OK;
 }
 
 ck_rv_t C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
@@ -227,7 +193,7 @@ ck_rv_t C_CloseAllSessions(ck_slot_id_t slot_id)
     CHECK_SLOT(slot_id);
     DBG("CloseAllSessions %lu", slot_id);
     for (int i = 0; i < MAX_SESSIONS; i++) {
-        if (sessions[i].slot->id == slot_id)
+        if (sessions[i].slot && sessions[i].slot->id == slot_id)
             session_free(sessions +i);
     }
     return CKR_OK;
@@ -313,21 +279,19 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     unsigned long i;
 
     DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
-    DBG("Curr key %p %lu", (void*)sess->curr_key, sess->slot->n_keys);
 
     struct key *key = session_key_by_serial(sess, object);
+    DBG("Curr key %p %lu", (void*)key, sess->slot->n_keys);
     if (!key)
         return CKR_OBJECT_HANDLE_INVALID;
 
-    if (key->n_attributes == 0) {
-        ck_rv_t r = key_collect_attributes(key);
-        if (r != CKR_OK)
-            return r;
-    }
+
     for (i = 0; i < count; i++) {
         DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
         unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
         for (unsigned long j = 0; j<key->n_attributes; j++) {
+            DBG("Key Attribute[%lu] %lu %lu", j, key->attributes[j].type,
+                            key->attributes[j].value_len);
             if (key->attributes[j].type != templ[i].type)
                 continue;
             if (!templ[i].value) {

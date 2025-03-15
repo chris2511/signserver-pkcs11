@@ -67,16 +67,13 @@ int key_init(struct key *key, key_serial_t key_id, char *desc, int desc_len)
     (void)desc_len;
     if (strncmp(desc, "asymmetric;", 11u) != 0)
         return 0;
-    char *name = strrchr(desc, ';');
-    if (!name)
-        return 0;
     
     memset(key, 0, sizeof *key);
     key->key = key_id;
-    key->name = strdup(name + 1);
+    key->name = dup_keyname(desc);
     DBG("Collect Attributes1 for '%s'", key->name);
     key_collect_attributes(key);
-    return 1;
+    return key->name ? 1 : 0;
 }
 
 #define INIT_ATTR(attr, _type, _len) { \

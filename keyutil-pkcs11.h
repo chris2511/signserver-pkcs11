@@ -12,6 +12,8 @@
 #include "opensc-pkcs11.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/param.h>
 
 #include <keyutils.h>
 
@@ -38,4 +40,17 @@ extern int dbg;
         break; \
     }
 
+static inline char *dup_keyname(const char *name)
+{
+    if (name)
+        name = strrchr(name, ';');
+    return name ? strdup(name +1) : NULL;
+}
+static inline void copy_spaced_name(const char *name,
+            unsigned char *ck_desc, size_t ck_len)
+{
+    size_t slen = strlen(name);
+    memset(ck_desc, ' ', ck_len);
+    memcpy(ck_desc, name, MIN(slen, ck_len));
+}
 #endif

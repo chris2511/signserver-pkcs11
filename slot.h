@@ -23,5 +23,6 @@ struct slot {
 
 ck_rv_t slot_load_keys(struct slot *slot);
 void slot_free(struct slot *slot);
+ck_rv_t slot_scan(int key_spec_keyring, struct slot *slots, ck_slot_id_t *n_slots);
 
 #endif
