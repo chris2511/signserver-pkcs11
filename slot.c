@@ -22,13 +22,13 @@ static int key_scanner_cb(key_serial_t parent, key_serial_t key,
                           char *desc, int desc_len, void *data)
 {
     struct slot *slot = data;
-    DBG("Slot %d(%d) KEY %d %d %s", slot->id, slot->keyring , key, desc);
+    DBG("Slot %lu(%d) KEY %d %s", slot->id, slot->keyring , key, desc);
     int ret = 0;
     if (slot->n_keys < MAX_KEYS && parent != 0) {
         ret = key_init(slot->keys + slot->n_keys, key, desc, desc_len);
         if (ret > 0)
             slot->n_keys++ ;
-        DBG("Key(%d) init = %d %d %lu", key, ret, slot->n_keys);
+        DBG("Key(%d) init = %d %lu", key, ret, slot->n_keys);
     }
     return ret;
 }
@@ -41,6 +41,6 @@ ck_rv_t slot_load_keys(struct slot *slot)
     if (!slot->keys)
         return CKR_HOST_MEMORY;
     long r = recursive_key_scan(slot->keyring, key_scanner_cb, slot);
-    DBG("Slot: %d(%d) Found %ld keys", slot->id, slot->keyring, r);
+    DBG("Slot: %lu(%d) Found %ld keys", slot->id, slot->keyring, r);
     return CKR_OK;
 }
