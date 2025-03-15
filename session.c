@@ -8,16 +8,15 @@
 #include "session.h" 
 #include <string.h>
 
-struct key *session_key_by_serial(struct session *sess, key_serial_t key_id)
+struct object *session_object_by_serial(struct session *sess, key_serial_t obj_id)
 {
-    struct key *key;
-    if (sess->curr_key && sess->curr_key->key == key_id)
-        return sess->curr_key;
-    for (unsigned long i = 0; i < sess->slot->n_keys; i++) {
-        key = sess->slot->keys + i;
-        if (key->key == key_id) {
-            sess->curr_key = key;
-            return key;
+    struct object *obj;
+    if (sess->curr_obj && sess->curr_obj->object_id == obj_id)
+        return sess->curr_obj;
+    for (obj = sess->slot->objects; obj; obj = obj->next) {
+        if (obj->object_id == obj_id) {
+            sess->curr_obj = obj;
+            return obj;
         }
     }
     return NULL;

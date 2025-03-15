@@ -6,43 +6,49 @@
  */
  
 #include "slot.h" 
+#include "link.h" 
+#include "object.h" 
+
 #include <stdlib.h>
 #include <string.h>
 
 void slot_free(struct slot *slot)
 {
-    if (slot->keys)
-        free(slot->keys);
+    struct object *obj, *next;
+    for (obj = slot->objects; obj; obj = next) {
+        next = obj->next;
+        object_free(obj);
+    }
+    struct link *link, *lnext;
+    for (link = slot->links; link; link = lnext) {
+        lnext = link->next;
+        link_free(link);
+    }
     if (slot->name)
         free(slot->name);
+
     memset(slot, 0, sizeof(struct slot));
 }
 
-static int key_scanner_cb(key_serial_t parent, key_serial_t key,
+static int key_scanner_cb(key_serial_t parent, key_serial_t object_id,
                           char *desc, int desc_len, void *data)
 {
+    (void)desc_len;
     struct slot *slot = data;
-    DBG("Slot %lu(%d) KEY %d %s", slot->id, slot->keyring , key, desc);
-    int ret = 0;
-    if (slot->n_keys < MAX_KEYS && parent != 0) {
-        ret = key_init(slot->keys + slot->n_keys, key, desc, desc_len);
-        if (ret > 0)
-            slot->n_keys++ ;
-        DBG("Key(%d) init = %d %lu", key, ret, slot->n_keys);
-    }
-    return ret;
-}
+    DBG("Slot %lu(%d) KEY %d %s", slot->id, slot->keyring , object_id, desc);
 
-ck_rv_t slot_load_keys(struct slot *slot)
-{
-    if (slot->keys)
-        return CKR_OK;
-    slot->keys = calloc(MAX_KEYS, sizeof(struct key));
-    if (!slot->keys)
-        return CKR_HOST_MEMORY;
-    long r = recursive_key_scan(slot->keyring, key_scanner_cb, slot);
-    DBG("Slot: %lu(%d) Found %ld keys", slot->id, slot->keyring, r);
-    return CKR_OK;
+    if (parent == 0)
+        return 0;
+    
+    struct object *obj = object_new(object_id, desc);
+    if (!obj)
+        return 0;
+
+    obj->next = slot->objects;
+    slot->objects = obj;
+    slot->n_objects++;
+    DBG("Object[%lu](%d)",slot->n_objects, object_id);
+    return 1;
 }
 
 struct keyring_data {
@@ -65,8 +71,11 @@ static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
     slot->keyring = key;
     slot->id = kd->n_slots;
     slot->name = dup_keyname(desc);
-    slot_load_keys(slot);
+
+    recursive_key_scan(slot->keyring, key_scanner_cb, slot);
+    DBG("Slot: %lu(%d) Found %ld keys", slot->id, slot->keyring, slot->n_objects);
     kd->n_slots++;
+    slot_link_objects(slot);
 
     return 1;
 }
@@ -78,4 +87,27 @@ ck_rv_t slot_scan(int key_spec_keyring, struct slot *slots, ck_slot_id_t *n_slot
     DBG("Found %ld keyrings", r);
     *n_slots = kd.n_slots;
     return r < 0 ? CKR_GENERAL_ERROR : CKR_OK;
+}
+
+void slot_link_objects(struct slot *slot)
+{
+    struct object *obj;
+    for (obj = slot->objects; obj; obj = obj->next) {
+        struct link *link;
+        const char *name = forward_to_colon(obj);
+        DBG("Linking %s", name);
+        for (link = slot->links; link; link = link->next) {
+            if (strcmp(link->name, name) == 0)
+                break;
+        }
+        if (!link) {
+            link = link_new(name);
+            if (link) {
+                link->next = slot->links;
+                slot->links = link;
+            }
+        }
+        if (link)
+            object_link(obj, link);
+    }
 }

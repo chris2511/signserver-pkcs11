@@ -9,6 +9,8 @@
 #define _OBJECT_H 1
 
 #include "keyutil-pkcs11.h"
+#include "attr.h"
+#include "key.h"
 
 enum object_type {
     OBJECT_TYPE_PUBLIC_KEY,
@@ -18,17 +20,20 @@ enum object_type {
 
 struct object {
     struct object *next;
-    struct object *prev;
     key_serial_t object_id;
     enum object_type type;
     char *name;
-    unsigned long n_attributes;
-    struct ck_attribute attributes[MAX_ATTRIBUTES];
+    struct attr attributes;
+    struct link *link;
+    union {
+        struct key key;
+    };
 };
 
-int object_init(struct object *obj, key_serial_t key_id, char *desc, int desc_len);
+struct object *object_new(key_serial_t key_id, char *desc);
 void object_free(struct object *obj);
-//ck_rv_t object_collect_attributes(struct object *obj);
 int object_match_attributes(struct object *obj, struct ck_attribute *templ, unsigned long n);
+const char *forward_to_colon(struct object *obj);
+ck_rv_t object_link(struct object *obj, struct link *link);
 
 #endif

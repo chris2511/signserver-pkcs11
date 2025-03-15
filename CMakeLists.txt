@@ -14,9 +14,12 @@ find_library(keyutils keyutils)
 
 add_library(keyutils-pkcs11 MODULE
     pkcs11.c unavailable.c keyutil-pkcs11.h
-    slot.c slot.h
+    attr.c attr.h
     key.c key.h
+    object.c object.h
     session.c session.h
+    slot.c slot.h
+    link.c link.h
 )
 
 target_link_libraries(keyutils-pkcs11 keyutils)

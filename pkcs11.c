@@ -43,7 +43,8 @@ const struct ck_info ckinfo = {
 ck_rv_t C_Initialize(void *init)
 {
     (void)init;
-    dbg = getenv("DEBUG") ? 1 : 0 ;
+    const char *debug = getenv("DEBUG");
+    dbg = debug && *debug;
     DBG("C_Initialize -------- START");
     
     memset(sessions, 0, sizeof sessions);
@@ -213,17 +214,18 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
     struct slot * slot = sess->slot;
+    struct object *obj;
     DBG("C_FindObjectsInit %lu %d %lu", session, slot->keyring, count);
 
     sess->n_found = 0;
     sess->find_pos = 0;
-    for (unsigned long i = 0; i < slot->n_keys; i++) {
-        struct key *key = slot->keys + i;
-        if (key_match_attributes(key, templ, count)) {
-            sess->found_keys[sess->n_found++] = key;
+    sess->found_objects = calloc(slot->n_objects, sizeof(struct object*));
+    for (obj = slot->objects; obj; obj = obj->next) {
+        if (attr_match_template(&obj->attributes, templ, count)) {
+            sess->found_objects[sess->n_found++] = obj;
         }
     }
-    DBG("Objects found %lu out of %lu", sess->n_found, slot->n_keys);
+    DBG("Objects found %lu out of %lu", sess->n_found, slot->n_objects);
 
     sess->curr_op = 1;
     return CKR_OK;
@@ -248,7 +250,7 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
         max_object_count = sess->n_found - sess->find_pos;
 
     for (unsigned long i = 0; i < max_object_count; i++) {
-        object[i] = sess->found_keys[sess->find_pos++]->key;
+        object[i] = (ck_object_handle_t)sess->found_objects[sess->find_pos++]->object_id;
     }
     *object_count = max_object_count;
     return CKR_OK;
@@ -276,35 +278,14 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     CHECK_SESSION(session);
     CHECKARG(templ);
     struct session *sess = sessions +session;
-    unsigned long i;
 
     DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
 
-    struct key *key = session_key_by_serial(sess, object);
-    DBG("Curr key %p %lu", (void*)key, sess->slot->n_keys);
-    if (!key)
+    struct object *obj = session_object_by_serial(sess, object);
+    if (!obj)
         return CKR_OBJECT_HANDLE_INVALID;
 
-
-    for (i = 0; i < count; i++) {
-        DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
-        unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
-        for (unsigned long j = 0; j<key->n_attributes; j++) {
-            DBG("Key Attribute[%lu] %lu %lu", j, key->attributes[j].type,
-                            key->attributes[j].value_len);
-            if (key->attributes[j].type != templ[i].type)
-                continue;
-            if (!templ[i].value) {
-                new_len = key->attributes[j].value_len;
-            } else {
-                if (templ[i].value_len >= key->attributes[j].value_len) {
-                    new_len = key->attributes[j].value_len;
-                    memcpy(templ[i].value, key->attributes[j].value, new_len);
-                }
-            }
-        }
-        templ[i].value_len = new_len;
-    }
+    attr_fill_template(&obj->attributes, templ, count);
     return CKR_OK;
 }
 
@@ -349,12 +330,11 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
 
-    struct key *key = session_key_by_serial(sess, key_id);
-    sess->curr_op = 1;
-    if (!key)
+    struct object *obj = session_object_by_serial(sess, key_id);
+    if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
-    key->data_len = 0;
-    return key_mechanism_dup(key, mechanism);
+    sess->curr_op = 1;
+    return key_mechanism_dup(obj, mechanism);
 }
 
 ck_rv_t C_SignUpdate(ck_session_handle_t session,
@@ -365,12 +345,12 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
     CHECKARG(part);
     CHECKARG(part_len);
     struct session *sess = sessions +session;
-    struct key *key = session_curr_key(sess);
+    struct object *obj = session_curr_obj(sess);
 
-    if (sess->curr_op != 1 || !key)
+    if (sess->curr_op != 1 || !obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OPERATION_NOT_INITIALIZED;
 
-    return key_data_add(key, part, part_len);
+    return key_data_add(obj, part, part_len);
 }
 
 ck_rv_t C_SignFinal(ck_session_handle_t session,
@@ -383,13 +363,13 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     struct session *sess = sessions +session;
 
     DBG("Session: %lu", session);
-    struct key *key = session_curr_key(sess);
-    if (!key)
+    struct object *obj = session_curr_obj(sess);
+    if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
     if (sess->curr_op != 1)
         return CKR_OPERATION_NOT_INITIALIZED;
 
-    ck_rv_t r = key_sign(key, signature, signature_len);
+    ck_rv_t r = key_sign(obj, signature, signature_len);
     sess->curr_op = 0;
     return r;
 }

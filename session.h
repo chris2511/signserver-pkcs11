@@ -16,18 +16,18 @@ struct session {
     struct slot *slot;
     /* Operation (find, sign ..) in progress */
     unsigned long curr_op;
-    struct key *curr_key;
+    struct object *curr_obj;
     /* FindObjects*() data */
     unsigned long find_pos;
     unsigned long n_found;
-    struct key *found_keys[MAX_KEYS];
+    struct object **found_objects;
 };
 
-static inline struct key *session_curr_key(struct session *sess)
+static inline struct object *session_curr_obj(struct session *sess)
 {
-    return sess->curr_key;
+    return sess->curr_obj;
 }
 
-struct key *session_key_by_serial(struct session *sess, key_serial_t key);
+struct object *session_object_by_serial(struct session *sess, key_serial_t obj_id);
 void session_free(struct session *sess);
 #endif
