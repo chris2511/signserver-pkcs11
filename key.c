@@ -18,16 +18,29 @@ const ck_mechanism_type_t rsa_mechs[] = {
     //    CKM_RSA_X_509,
     //     CKM_RSA_PKCS_OAEP,
     //     CKM_RSA_PKCS_PSS,
-    //    CKM_SHA1_RSA_PKCS,
-    //    CKM_SHA256_RSA_PKCS,
-    //    CKM_SHA384_RSA_PKCS,
-    //    CKM_SHA512_RSA_PKCS,
+        CKM_SHA1_RSA_PKCS,
+        CKM_SHA256_RSA_PKCS,
+        CKM_SHA384_RSA_PKCS,
+        CKM_SHA512_RSA_PKCS,
     //     CKM_SHA1_RSA_PKCS_PSS,
     //     CKM_SHA256_RSA_PKCS_PSS,
     //     CKM_SHA384_RSA_PKCS_PSS,
     //     CKM_SHA512_RSA_PKCS_PSS,
 };
 const unsigned long n_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
+
+static const char *enc_by_id(int id)
+    {
+        switch (id) {
+        case CKM_RSA_PKCS:
+        case CKM_SHA1_RSA_PKCS:
+        case CKM_SHA256_RSA_PKCS:
+        case CKM_SHA384_RSA_PKCS:
+        case CKM_SHA512_RSA_PKCS:
+            return "enc=pkcs1";
+        }
+        return "";
+}
 
 int key_mechanism_dup(struct key *dst, struct ck_mechanism *src)
 {
@@ -61,6 +74,7 @@ int key_init(struct key *key, key_serial_t key_id, char *desc, int desc_len)
     memset(key, 0, sizeof *key);
     key->key = key_id;
     key->name = strdup(name + 1);
+    key_collect_attributes(key);
     return 1;
 }
 
@@ -91,10 +105,10 @@ ck_rv_t key_collect_attributes(struct key *key)
 
     int r = keyctl_pkey_query(key->key, "", &key->query);
     if (r == -1) {
-        printf("QUERY %d - %s\n", r, strerror(errno));
+        fprintf(stderr, "keyctl_pkey_query %d - %s\n", r, strerror(errno));
         return CKR_SLOT_ID_INVALID;
     }
-    printf("QUERY %u %u %u %u\n", key->query.max_data_size,
+    DBG("QUERY %u %u %u %u", key->query.max_data_size,
         key->query.max_dec_size, key->query.max_enc_size,
         key->query.max_sig_size);
     if (key->query.key_size > 1024) {
@@ -144,7 +158,7 @@ ck_rv_t key_sign(struct key *key,
     unsigned char *signature, unsigned long *signature_len)
 {
     size_t sig_len = MIN(key->query.max_sig_size, *signature_len);
-    long ret = keyctl_pkey_sign(key->key, "enc=raw",
+    long ret = keyctl_pkey_sign(key->key, enc_by_id(key->mechanism.mechanism),
         key->data, key->data_len, signature, sig_len);
     if (ret < 0) {
         fprintf(stderr, "SIGN Error %ld - %s key:%d(%s) in:%lu out:%zu\n", ret,
@@ -153,7 +167,7 @@ ck_rv_t key_sign(struct key *key,
     }
 
     *signature_len = ret;
-    fprintf(stderr, "SIGN OK %ld key:%d(%s) in:%lu out:%lu\n", ret,
+    DBG("SIGN OK %ld key:%d(%s) in:%lu out:%lu", ret,
             key->key, key->name, key->data_len, sig_len);
     
     return CKR_OK;
@@ -168,6 +182,32 @@ ck_rv_t key_data_add(struct key *key,
     memcpy(key->data + key->data_len, data, data_len);
     key->data_len += data_len;
 
-    fprintf(stderr, "PART '%s' %ld\n", data, data_len);
+    DBG("PART '%s' %ld", data, data_len);
     return CKR_OK;
+}
+
+/* Returns 0 if an attribute did not match,
+ * 1 if all matched, 
+ * 2 if some attributes are unknown
+ */
+int key_match_attributes(struct key *key, struct ck_attribute *templ, unsigned long n)
+{
+    int unknown = 0;
+    unsigned long i, j;
+    for (i = 0; i < n; i++) {
+        struct ck_attribute *attr = templ + i;
+        for (j = 0; j < key->n_attributes; j++) {
+            struct ck_attribute *key_attr = key->attributes + j;
+            if (attr->type == key_attr->type) {
+                if (attr->value_len != key_attr->value_len)
+                    return 0;
+                if (memcmp(attr->value, key_attr->value, attr->value_len) != 0)
+                    return 0;
+                break;
+            }
+        }
+        if (j == key->n_attributes)
+            unknown = 1;
+    }
+    return unknown ? 2 : 1;
 }

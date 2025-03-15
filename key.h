@@ -32,5 +32,6 @@ ck_rv_t key_sign(struct key *key,
     unsigned char *signature, unsigned long *signature_len);
 ck_rv_t key_data_add(struct key *key,
     unsigned char *data, unsigned long data_len);
+int key_match_attributes(struct key *key, struct ck_attribute *templ, unsigned long n);
 
 #endif

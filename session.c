@@ -33,16 +33,16 @@ static int key_scanner_cb(key_serial_t parent, key_serial_t key,
     return ret;
 }
 
-ck_rv_t session_load_keys(struct session *sess, key_serial_t keyring)
+ck_rv_t session_load_keys(struct session *sess)
 {
     if (sess->keys)
-        free(sess->keys);
+        return CKR_OK;
     sess->keys = calloc(MAX_KEYS, sizeof(struct key));
     if (!sess->keys)
         return CKR_HOST_MEMORY;
-    long r = recursive_key_scan(keyring, key_scanner_cb, sess);
+    long r = recursive_key_scan(sess->keyring, key_scanner_cb, sess);
     DBG("Found %ld keys", r);
-    return 0;
+    return CKR_OK;
 }
 
 struct key *session_next_key(struct session *sess)
@@ -59,6 +59,10 @@ struct key *session_next_key(struct session *sess)
 struct key *session_find_key(struct session *sess, key_serial_t key_id)
 {
     struct key *key;
+    if (sess->curr_key && sess->curr_key->key == key_id)
+        return sess->curr_key;
+    if (!sess->keys)
+        return NULL;
     sess->curr_key = NULL;
     while ((key = session_next_key(sess))) {
         DBG("key %d, object %d", key->key, key_id);

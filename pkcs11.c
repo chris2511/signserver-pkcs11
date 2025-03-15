@@ -31,7 +31,6 @@ struct slotids {
 int dbg;
 static int initialized = 0;
 struct session sessions[MAX_SESSIONS];
-struct ck_function_list pkcs11_function_list;
 
 static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
                               char *desc, int desc_len, void *data)
@@ -40,6 +39,7 @@ static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
     struct slotids *slots = data;
     DBG("KEYRING %d %s", key, desc);
     if (parent != 0 && strncmp(desc, "keyring;", 8u) == 0) {
+        DBG("Found KEYRING %d %s", key, desc);
         if (slots->n_slots < MAX_SLOTS)
             slots->slot_ids[slots->n_slots++] = (ck_slot_id_t)key;
     }
@@ -90,7 +90,7 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
     INITIALIZED;
     CHECKARG(count);
 
-    DBG("C_GetSlotList %lu", *count);
+    DBG("C_GetSlotList %lu", slot_list ? *count : 0);
     struct slotids slots = { .n_slots = 0 };
     long r = recursive_key_scan(KEY_SPEC_USER_KEYRING, keyring_scanner_cb, &slots);
     if (r < 0)
@@ -180,7 +180,7 @@ ck_rv_t C_OpenSession( ck_slot_id_t slot_id, ck_flags_t flags,
     DBG("Slot ID %lu", slot_id);
     if ((flags & CKF_SERIAL_SESSION) == 0)
         return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
-    if ((flags & CKF_RW_SESSION) == 0)
+    if (flags & CKF_RW_SESSION)
         return CKR_TOKEN_WRITE_PROTECTED;
 
     for (int i = 0; i < MAX_SESSIONS; i++) {
@@ -228,17 +228,20 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
 
-    DBG("C_FindObjectsInit %lu %d %lu", session, keyring, count);
-    ck_rv_t r = session_load_keys(sess, keyring);
+    sess->search_templ = templ;
+    sess->search_templ_count = count;
+    DBG("C_FindObjectsInit %lu %d %lu", session, sess->keyring, count);
+    ck_rv_t r = session_load_keys(sess);
+    sess->search_templ = NULL;
+    sess->search_templ_count = 0;
+    
     if (r != CKR_OK)
         return r;
-    for (unsigned long i = 0; i < count; i++) {
-        DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
-    }
 
     DBG("Objects found %lu", sess->n_keys);
     sess->curr_key = NULL;
     sess->curr_op = 1;
+    sess->find_pos = 0;
     return CKR_OK;
 }
 
@@ -257,11 +260,11 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
     if (sess->curr_op != 1)
         return CKR_OPERATION_NOT_INITIALIZED;
 
-    if (max_object_count > sess->n_keys - session_curr_key_pos(sess))
-        max_object_count = sess->n_keys - session_curr_key_pos(sess);
+    if (max_object_count > sess->n_keys - sess->find_pos)
+        max_object_count = sess->n_keys - sess->find_pos;
 
     for (unsigned long i = 0; i < max_object_count; i++) {
-        object[i] = session_next_key(sess)->key;
+        object[i] = sess->keys[sess->find_pos++].key;
     }
     *object_count = max_object_count;
     return CKR_OK;
