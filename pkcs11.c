@@ -223,25 +223,26 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
         CHECKARG(templ);
 
     struct session *sess = sessions +session;
-    key_serial_t keyring = sess->keyring;
 
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
 
-    sess->search_templ = templ;
-    sess->search_templ_count = count;
     DBG("C_FindObjectsInit %lu %d %lu", session, sess->keyring, count);
     ck_rv_t r = session_load_keys(sess);
-    sess->search_templ = NULL;
-    sess->search_templ_count = 0;
-    
     if (r != CKR_OK)
         return r;
 
-    DBG("Objects found %lu", sess->n_keys);
-    sess->curr_key = NULL;
-    sess->curr_op = 1;
+    sess->n_found = 0;
     sess->find_pos = 0;
+    for (unsigned long i = 0; i < sess->n_keys; i++) {
+        struct key *key = sess->keys + i;
+        if (key_match_attributes(key, templ, count)) {
+            sess->found_keys[sess->n_found++] = key;
+        }
+    }
+    DBG("Objects found %lu out of %lu", sess->n_found, sess->n_keys);
+
+    sess->curr_op = 1;
     return CKR_OK;
 }
 
@@ -260,11 +261,11 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
     if (sess->curr_op != 1)
         return CKR_OPERATION_NOT_INITIALIZED;
 
-    if (max_object_count > sess->n_keys - sess->find_pos)
-        max_object_count = sess->n_keys - sess->find_pos;
+    if (max_object_count > sess->n_found - sess->find_pos)
+        max_object_count = sess->n_found - sess->find_pos;
 
     for (unsigned long i = 0; i < max_object_count; i++) {
-        object[i] = sess->keys[sess->find_pos++].key;
+        object[i] = sess->found_keys[sess->find_pos++]->key;
     }
     *object_count = max_object_count;
     return CKR_OK;
@@ -279,7 +280,7 @@ ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
 
     if (sess->curr_op != 1)
         return CKR_OPERATION_NOT_INITIALIZED;
-    sess->curr_key = NULL;
+    sess->n_found = 0;
     sess->curr_op = 0;
 
     return CKR_OK;
@@ -297,7 +298,7 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
     DBG("Curr key %p %lu", (void*)sess->curr_key, sess->n_keys);
 
-    struct key *key = session_find_key(sess, object);
+    struct key *key = session_key_by_serial(sess, object);
     if (!key)
         return CKR_OBJECT_HANDLE_INVALID;
 
@@ -367,7 +368,7 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
 
-    struct key *key = session_find_key(sess, key_id);
+    struct key *key = session_key_by_serial(sess, key_id);
     sess->curr_op = 1;
     if (!key)
         return CKR_OBJECT_HANDLE_INVALID;

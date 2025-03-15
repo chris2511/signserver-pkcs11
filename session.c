@@ -13,8 +13,6 @@ void session_free(struct session *sess)
 {
     if (sess->keys)
         free(sess->keys);
-    if(sess->data)
-        free(sess->data);
     memset(sess, 0, sizeof(struct session));
 }
 
@@ -45,29 +43,17 @@ ck_rv_t session_load_keys(struct session *sess)
     return CKR_OK;
 }
 
-struct key *session_next_key(struct session *sess)
-{
-    if (!sess->curr_key)
-        sess->curr_key = sess->keys;
-    else if (session_curr_key_pos(sess) >= sess->n_keys)
-        sess->curr_key = NULL;
-    else
-        sess->curr_key++;
-    return sess->curr_key;
-}
-
-struct key *session_find_key(struct session *sess, key_serial_t key_id)
+struct key *session_key_by_serial(struct session *sess, key_serial_t key_id)
 {
     struct key *key;
     if (sess->curr_key && sess->curr_key->key == key_id)
         return sess->curr_key;
-    if (!sess->keys)
-        return NULL;
-    sess->curr_key = NULL;
-    while ((key = session_next_key(sess))) {
-        DBG("key %d, object %d", key->key, key_id);
-        if (key->key == key_id)
+    for (unsigned long i = 0; i < sess->n_keys; i++) {
+        key = sess->keys + i;
+        if (key->key == key_id) {
+            sess->curr_key = key;
             return key;
+        }
     }
     return NULL;
 }

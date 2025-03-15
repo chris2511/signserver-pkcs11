@@ -74,6 +74,7 @@ int key_init(struct key *key, key_serial_t key_id, char *desc, int desc_len)
     memset(key, 0, sizeof *key);
     key->key = key_id;
     key->name = strdup(name + 1);
+    DBG("Collect Attributes1 for '%s'", key->name);
     key_collect_attributes(key);
     return 1;
 }
@@ -102,7 +103,10 @@ ck_rv_t key_collect_attributes(struct key *key)
     INIT_ATTR(templ[n], CKA_LABEL, strlen(key->name));
     memcpy(templ[n].value, key->name, templ[n].value_len);
     n++;
+    INIT_ATTR_ULONG(templ[n], CKA_ID, key->key);
+    n++;
 
+    DBG("Collect Attributes for '%s'", key->name);
     int r = keyctl_pkey_query(key->key, "", &key->query);
     if (r == -1) {
         fprintf(stderr, "keyctl_pkey_query %d - %s\n", r, strerror(errno));
@@ -203,6 +207,7 @@ int key_match_attributes(struct key *key, struct ck_attribute *templ, unsigned l
                     return 0;
                 if (memcmp(attr->value, key_attr->value, attr->value_len) != 0)
                     return 0;
+                DBG("Object found %d - %lu:%lu", key->key, attr->type, attr->value_len);
                 break;
             }
         }
