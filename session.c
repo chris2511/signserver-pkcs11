@@ -6,54 +6,24 @@
  */
  
 #include "session.h" 
-#include <stdlib.h>
 #include <string.h>
-
-void session_free(struct session *sess)
-{
-    if (sess->keys)
-        free(sess->keys);
-    memset(sess, 0, sizeof(struct session));
-}
-
-static int key_scanner_cb(key_serial_t parent, key_serial_t key,
-                          char *desc, int desc_len, void *data)
-{
-    struct session *sess = data;
-    DBG("KEY %d %d %s", parent, key, desc);
-    int ret = 0;
-    if (sess->n_keys < MAX_KEYS && parent != 0) {
-        ret = key_init(sess->keys + sess->n_keys, key, desc, desc_len);
-        if (ret > 0)
-            sess->n_keys++ ;
-        DBG("KEY INIT %d  %d %lu", ret, key, sess->n_keys);
-    }
-    return ret;
-}
-
-ck_rv_t session_load_keys(struct session *sess)
-{
-    if (sess->keys)
-        return CKR_OK;
-    sess->keys = calloc(MAX_KEYS, sizeof(struct key));
-    if (!sess->keys)
-        return CKR_HOST_MEMORY;
-    long r = recursive_key_scan(sess->keyring, key_scanner_cb, sess);
-    DBG("Found %ld keys", r);
-    return CKR_OK;
-}
 
 struct key *session_key_by_serial(struct session *sess, key_serial_t key_id)
 {
     struct key *key;
     if (sess->curr_key && sess->curr_key->key == key_id)
         return sess->curr_key;
-    for (unsigned long i = 0; i < sess->n_keys; i++) {
-        key = sess->keys + i;
+    for (unsigned long i = 0; i < sess->slot->n_keys; i++) {
+        key = sess->slot->keys + i;
         if (key->key == key_id) {
             sess->curr_key = key;
             return key;
         }
     }
     return NULL;
+}
+
+void session_free(struct session *sess)
+{
+    memset(sess, 0, sizeof(struct session));
 }

@@ -9,16 +9,13 @@
 #define _SESSION_H 1
 
 #include "keyutil-pkcs11.h"
+#include "slot.h"
 #include "key.h"
 
 struct session {
-    /* Keyring / SlotId */
-    key_serial_t keyring;
+    struct slot *slot;
     /* Operation (find, sign ..) in progress */
     unsigned long curr_op;
-    /* Key management */
-    unsigned long n_keys;
-    struct key *keys;
     struct key *curr_key;
     /* FindObjects*() data */
     unsigned long find_pos;
@@ -32,7 +29,5 @@ static inline struct key *session_curr_key(struct session *sess)
 }
 
 struct key *session_key_by_serial(struct session *sess, key_serial_t key);
-ck_rv_t session_load_keys(struct session *sess);
 void session_free(struct session *sess);
-
 #endif
