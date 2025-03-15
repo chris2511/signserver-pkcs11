@@ -11,6 +11,7 @@
 #include "keyutil-pkcs11.h"
 #include "attr.h"
 #include "key.h"
+#include "x509.h"
 
 enum object_type {
     OBJECT_TYPE_PUBLIC_KEY,
@@ -27,6 +28,7 @@ struct object {
     struct link *link;
     union {
         struct key key;
+        struct x509 x509;
     };
 };
 

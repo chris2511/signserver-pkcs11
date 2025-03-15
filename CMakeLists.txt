@@ -6,6 +6,8 @@ project(keyutils-pkcs11
     LANGUAGES C
 )
 
+find_package(OpenSSL REQUIRED)
+
 message(STATUS "Using Clang/GNU options")
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 add_compile_options(-fmacro-prefix-map=${PROJECT_SOURCE_DIR}=.)
@@ -20,6 +22,7 @@ add_library(keyutils-pkcs11 MODULE
     session.c session.h
     slot.c slot.h
     link.c link.h
+    x509.c x509.h
 )
 
-target_link_libraries(keyutils-pkcs11 keyutils)
+target_link_libraries(keyutils-pkcs11 keyutils OpenSSL::Crypto)

@@ -44,13 +44,6 @@ static const char *enc_by_id(int id)
         return "";
 }
 
-#if 0
-static struct object *key_object(struct key *key)
-{
-    return (struct object *)((char *)key - offsetof(struct object, key));
-}
-#endif
-
 static struct key *object2key(struct object *obj)
 {
     return &obj->key;

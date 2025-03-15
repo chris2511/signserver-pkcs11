@@ -9,6 +9,7 @@
 #include "key.h"
 #include "attr.h"
 #include "link.h"
+#include "x509.h"
 
 #include <stdlib.h>
 #include <errno.h>
@@ -60,12 +61,13 @@ struct object *object_new(key_serial_t object_id, char *desc)
     if (strncmp(desc, "asymmetric;", 11u) == 0) {
         return key_init(_object_init(object_id, desc));
     }
-#if 0
     if (strncmp(desc, "user;", 5u) == 0) {
-        _object_init(obj, object_id, desc, sizeof(struct x509);
-        return x509_init(obj);
+        struct object *obj = _object_init(object_id, desc);
+        if (obj && strncmp(obj->name, "x509:", 5u) == 0) {
+            return x509_init(_object_init(object_id, desc));
+        }
+        object_free(obj);
     }
-#endif
     return NULL;
 }
 
