@@ -84,6 +84,7 @@ static ck_rv_t key_collect_attributes(struct object *obj)
 
     unsigned long supported_ops = key->query.supported_ops;
     if (supported_ops & (KEYCTL_SUPPORTS_DECRYPT | KEYCTL_SUPPORTS_SIGN)) {
+        obj->type = OBJECT_TYPE_PRIVATE_KEY;
         ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_PRIVATE_KEY);
         if (supported_ops & KEYCTL_SUPPORTS_DECRYPT)
             ATTR_ADD_BOOL(attr, CKA_DECRYPT, 1);
@@ -91,6 +92,7 @@ static ck_rv_t key_collect_attributes(struct object *obj)
             ATTR_ADD_BOOL(attr, CKA_SIGN, 1);
 
     } else if (supported_ops & (KEYCTL_SUPPORTS_ENCRYPT | KEYCTL_SUPPORTS_VERIFY)) {
+        obj->type = OBJECT_TYPE_PUBLIC_KEY;
         ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_PUBLIC_KEY);
         if (supported_ops & KEYCTL_SUPPORTS_ENCRYPT)
             ATTR_ADD_BOOL(attr, CKA_ENCRYPT, 1);
@@ -106,8 +108,6 @@ struct object *key_init(struct object *obj)
         return NULL;
 
     struct key *key = object2key(obj);
-
-    obj->type = OBJECT_TYPE_PRIVATE_KEY;
 
     DBG("Collect Attributes for '%s'", obj->name);
     int r = keyctl_pkey_query(obj->object_id, "", &key->query);
@@ -154,8 +154,8 @@ ck_rv_t key_data_add(struct object *obj,
     if (!key->data)
         return CKR_HOST_MEMORY;
     memcpy(key->data + key->data_len, data, data_len);
-    key->data_len += data_len;
 
-    DBG("PART '%s' %ld", data, data_len);
+    DBG("PART %ld + %ld - MECH: %lu", key->data_len, data_len, key->mechanism.mechanism);
+    key->data_len += data_len;
     return CKR_OK;
 }

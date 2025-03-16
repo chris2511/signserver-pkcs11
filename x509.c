@@ -39,6 +39,7 @@ static ck_rv_t x509_collect_attributes(struct object *obj)
     struct attr *attr = &obj->attributes;
 
     ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_CERTIFICATE);
+    ATTR_ADD_ULONG(attr, CKA_CERTIFICATE_TYPE, CKC_X_509);
     ATTR_ADD_STORAGE(attr, CKA_VALUE, x509->cert_der);
     ATTR_ADD_STORAGE(attr, CKA_SUBJECT, x509->name_der);
 

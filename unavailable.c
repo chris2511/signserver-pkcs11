@@ -17,6 +17,7 @@
 
 static ck_rv_t __unsupported()
 {
+	fprintf(stderr, "Unsupported function called\n");
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 

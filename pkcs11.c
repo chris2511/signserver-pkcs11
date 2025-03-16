@@ -200,6 +200,21 @@ ck_rv_t C_CloseAllSessions(ck_slot_id_t slot_id)
     return CKR_OK;
 }
 
+ck_rv_t C_GetSessionInfo(ck_session_handle_t session, struct ck_session_info *info)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    CHECKARG(info);
+    DBG("Session %lu", session);
+
+    memset(info, 0, sizeof *info);
+    info->slot_id = sessions[session].slot->id;
+    info->state = CKS_RO_PUBLIC_SESSION;
+    info->flags = CKF_SERIAL_SESSION;
+    info->device_error = 0;
+    return CKR_OK;
+}
+
 ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
                           struct ck_attribute *templ,
                           unsigned long count)
@@ -399,6 +414,7 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
     fl->C_OpenSession = C_OpenSession;
     fl->C_CloseSession = C_CloseSession;
     fl->C_CloseAllSessions = C_CloseAllSessions;
+    fl->C_GetSessionInfo = C_GetSessionInfo;
     fl->C_FindObjectsInit = C_FindObjectsInit;
     fl->C_FindObjects = C_FindObjects;
     fl->C_FindObjectsFinal = C_FindObjectsFinal;
@@ -409,7 +425,6 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
     fl->C_SignFinal = C_SignFinal;
     fl->C_SignUpdate = C_SignUpdate;
     fl->C_Sign = C_Sign;
-
     *function_list = fl;
     return CKR_OK;
 }
