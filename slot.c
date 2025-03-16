@@ -108,6 +108,10 @@ void slot_link_objects(struct slot *slot)
         }
         obj->do_link(obj, link);
     }
-    for (obj = slot->objects; obj; obj = obj->next)
+    for (obj = slot->objects; obj; obj = obj->next) {
+        DBG("Collect Attributes for Kernel:%d '%s' type:%d Link:'%s'",
+            obj->object_id, obj->name, obj->type,
+            obj->link ? obj->link->name : "NONE");
         link_collect_attributes(obj->link, &obj->attributes);
+    }
 }
