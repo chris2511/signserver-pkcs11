@@ -8,7 +8,6 @@ project(keyutils-pkcs11
 
 find_package(OpenSSL REQUIRED)
 
-message(STATUS "Using Clang/GNU options")
 add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 add_compile_options(-fmacro-prefix-map=${PROJECT_SOURCE_DIR}=.)
 
