@@ -76,7 +76,6 @@ static int keyring_scanner_cb(key_serial_t parent, key_serial_t key,
     DBG("Slot: %lu(%d) Found %ld keys", slot->id, slot->keyring, slot->n_objects);
     kd->n_slots++;
     slot_link_objects(slot);
-
     return 1;
 }
 

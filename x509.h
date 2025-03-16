@@ -17,6 +17,8 @@ struct object;
 
 struct x509 {
     X509 *certificate;
+    unsigned char *certificate_der;
+    unsigned long certificate_len;
 };
 
 struct object *x509_init(struct object *obj);

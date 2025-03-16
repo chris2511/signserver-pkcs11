@@ -28,6 +28,21 @@ struct link *link_new(const char *name)
 void link_free(struct link *link)
 {
     DBG("Free Link P11_ID:%lu Name:%s", link->pkcs11_id, link->name);
+    if (link->pkey)
+        EVP_PKEY_free(link->pkey);
     free(link->name);
     free(link);
+}
+
+ck_rv_t link_collect_attributes(struct object *obj)
+{
+    struct link *link = obj->link;
+    struct attr *attr = &obj->attributes;
+    ATTR_ADD(attr, CKA_ID, &link->pkcs11_id, sizeof link->pkcs11_id, 0);
+    return CKR_OK;
+}
+
+void link_add_pkey(struct link *link, EVP_PKEY *pkey)
+{
+    link->pkey = pkey;
 }

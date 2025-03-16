@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+unsigned char attr_True = 1, attr_False =0;
+
 int attr_init(struct attr *attr)
 {
     attr->count = 0;
@@ -20,7 +22,7 @@ int attr_init(struct attr *attr)
 void attr_free(struct attr *attr)
 {
     for (unsigned long i = 0; i < attr->count; i++) {
-        if (attr->attributes[i].value)
+        if (attr->attributes[i].value && (attr->alloced_bitfield & (1 << i)))
             free(attr->attributes[i].value);
     }
     free(attr->attributes);
@@ -28,7 +30,7 @@ void attr_free(struct attr *attr)
 }
 
 ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
-                 void *value, size_t value_len)
+                 void *value, size_t value_len, int dup)
 {
     if (attr->count >= attr->alloced) {
         attr->alloced *= 2;
@@ -39,11 +41,18 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
     }
     struct ck_attribute *a = attr->attributes + attr->count;
     a->type = type;
-    a->value = malloc(value_len);
-    if (!a->value)
-        return CKR_HOST_MEMORY;
+    if (attr->count >= sizeof(attr->alloced_bitfield) * 8)
+        return CKR_ARGUMENTS_BAD;
+    if (dup) {
+        a->value = malloc(value_len);
+        if (!a->value)
+            return CKR_HOST_MEMORY;
+        memcpy(a->value, value, value_len);
+        attr->alloced_bitfield |= 1 << attr->count;
+    } else {
+        a->value = value;
+    }
     a->value_len = (unsigned long)value_len;
-    memcpy(a->value, value, value_len);
     attr->count++;
     return CKR_OK;
 }
@@ -103,4 +112,16 @@ int attr_fill_template(struct attr *attr,
     }
     DBG("Attributes Filled %lu out of %lu", filled, count);
     return filled;
+}
+
+unsigned char *attr_i2d(int(*i2d)(const void*, unsigned char **),
+                        const void *data)
+{
+    unsigned char *buffer, *p;
+    int size = i2d(data, NULL);
+    if (size < 0)
+        return NULL;
+    p = buffer = malloc(size);
+    i2d(data, &p);
+    return buffer;
 }

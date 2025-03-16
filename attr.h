@@ -10,34 +10,40 @@
 
 #include "keyutil-pkcs11.h"
 
+extern unsigned char attr_True, attr_False;
+
 struct attr {
+    unsigned long alloced_bitfield;
     unsigned long count;
     unsigned long alloced;
     struct ck_attribute *attributes;
 };
 
-#define ATTR_ADD(attr, type, val, len) do { \
-    ck_rv_t r = attr_add((attr), (type), (void*)(val), (len)); \
+#define ATTR_ADD(attr, type, val, len, dup) do { \
+    ck_rv_t r = attr_add((attr), (type), (void*)(val), (len), (dup)); \
     if (r != CKR_OK) \
         return r; \
 } while (0)
 
 #define ATTR_ADD_ULONG(attr, type, _val) do { \
     unsigned long val = (_val); \
-    ATTR_ADD((attr), (type), &val, sizeof val); \
+    ATTR_ADD((attr), (type), &val, sizeof val, 1); \
 } while (0)
 
 #define ATTR_ADD_BOOL(attr, type, _val) do { \
-    unsigned char val = (_val); \
-    ATTR_ADD((attr), (type), &val, sizeof val); \
+    unsigned char *val = (_val) ? &attr_True : &attr_False; \
+    ATTR_ADD((attr), (type), val, sizeof *val, 0); \
 } while (0)
 
 int attr_init(struct attr *attr);
 void attr_free(struct attr *attr);
 ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
-                 void *value, unsigned long value_len);
+                 void *value, unsigned long value_len, int dup);
 int attr_match_template(struct attr *attr,
         struct ck_attribute *templ, unsigned long count);
 int attr_fill_template(struct attr *attr,
         struct ck_attribute *templ, unsigned long count);
+unsigned char *attr_i2d(int(*i2d)(const void*, unsigned char **),
+                        const void *data);
+
 #endif

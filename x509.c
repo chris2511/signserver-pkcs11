@@ -35,15 +35,19 @@ static ck_rv_t x509_collect_attributes(struct object *obj)
 {
     struct x509 *x509 = object2x509(obj);
     struct attr *attr = &obj->attributes;
-
+    unsigned char *buffer, *p;
+    int len = i2d_X509(x509->certificate, NULL); 
+    buffer = p = OPENSSL_malloc(len);
+    i2d_X509(x509->certificate, &p);
+    ATTR_ADD(attr, CKA_VALUE, buffer, (size_t)len, 1);
+    OPENSSL_free(buffer);
+    ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_CERTIFICATE);
     X509_NAME *name = X509_get_subject_name(x509->certificate);
     if (name) {
-        unsigned char *subject, *p;
-        int len = i2d_X509_NAME(name, NULL); 
-        subject = p = OPENSSL_malloc(len);
+        buffer = p = OPENSSL_malloc(len);
         i2d_X509_NAME(name, &p);
-        ATTR_ADD(attr, CKA_SUBJECT, subject, (size_t)len);
-        free(subject);
+        ATTR_ADD(attr, CKA_SUBJECT, buffer, (size_t)len, 1);
+        OPENSSL_free(buffer);
         X509_NAME_free(name);
     }
     return CKR_OK;

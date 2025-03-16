@@ -30,7 +30,7 @@ static ck_rv_t object_collect_attributes(struct object *obj)
 {
     const char *name = forward_to_colon(obj);
     struct attr *attr = &obj->attributes;
-    ATTR_ADD(attr, CKA_LABEL, name, strlen(name));
+    ATTR_ADD(attr, CKA_LABEL, (char*)name, strlen(name), 0);
     ATTR_ADD_BOOL(attr, CKA_ALWAYS_AUTHENTICATE, 0);
     return CKR_OK;
 }
@@ -64,7 +64,7 @@ struct object *object_new(key_serial_t object_id, char *desc)
     if (strncmp(desc, "user;", 5u) == 0) {
         struct object *obj = _object_init(object_id, desc);
         if (obj && strncmp(obj->name, "x509:", 5u) == 0) {
-            return x509_init(_object_init(object_id, desc));
+            return x509_init(obj);
         }
         object_free(obj);
     }

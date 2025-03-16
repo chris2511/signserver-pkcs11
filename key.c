@@ -67,8 +67,6 @@ void key_free(struct object *obj)
         free(key->data);
     if (key->mechanism.parameter)
         free(key->mechanism.parameter);
-//    if (pkey)
-//        EVP_PKEY_free(pkey);
     object_free(obj);
 }
 
@@ -81,7 +79,7 @@ static ck_rv_t key_collect_attributes(struct object *obj)
     if (key->query.key_size > 1024) {
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
         ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, key->query.key_size);
-        ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs);
+        ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs, 0);
     }
 
     unsigned long supported_ops = key->query.supported_ops;
