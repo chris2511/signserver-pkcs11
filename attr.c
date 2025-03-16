@@ -113,15 +113,3 @@ int attr_fill_template(struct attr *attr,
     DBG("Attributes Filled %lu out of %lu", filled, count);
     return filled;
 }
-
-unsigned char *attr_i2d(int(*i2d)(const void*, unsigned char **),
-                        const void *data)
-{
-    unsigned char *buffer, *p;
-    int size = i2d(data, NULL);
-    if (size < 0)
-        return NULL;
-    p = buffer = malloc(size);
-    i2d(data, &p);
-    return buffer;
-}

@@ -106,7 +106,8 @@ void slot_link_objects(struct slot *slot)
                 slot->links = link;
             }
         }
-        if (link)
-            object_link(obj, link);
+        obj->do_link(obj, link);
     }
+    for (obj = slot->objects; obj; obj = obj->next)
+        link_collect_attributes(obj->link, &obj->attributes);
 }

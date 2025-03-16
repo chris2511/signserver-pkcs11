@@ -26,6 +26,7 @@ struct object {
     char *name;
     struct attr attributes;
     struct link *link;
+    void (*do_link)(struct object *obj, struct link *link);
     union {
         struct key key;
         struct x509 x509;

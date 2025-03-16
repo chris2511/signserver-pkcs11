@@ -9,16 +9,17 @@
 #define _X509_H 1
 
 #include "keyutil-pkcs11.h"
-#include <stddef.h>
+#include "storage.h"
 
+#include <stddef.h>
 #include <openssl/x509.h>
 
 struct object;
 
 struct x509 {
     X509 *certificate;
-    unsigned char *certificate_der;
-    unsigned long certificate_len;
+    struct storage *cert_der;
+    struct storage *name_der;
 };
 
 struct object *x509_init(struct object *obj);

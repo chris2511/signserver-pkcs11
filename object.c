@@ -35,12 +35,18 @@ static ck_rv_t object_collect_attributes(struct object *obj)
     return CKR_OK;
 }
 
+static void link_object(struct object *obj, struct link *link)
+{
+    obj->link = link;
+}
+
 static struct object *_object_init(key_serial_t object_id, char *desc)
 {
     DBG("New Object %d %s", object_id, desc);
     struct object *obj = calloc(1, sizeof *obj);
     if (obj) {
         obj->object_id = object_id;
+        obj->do_link = link_object;
         struct attr *attr = &obj->attributes;
         obj->name = dup_keyname(desc);
         if (obj->name) {
@@ -75,12 +81,4 @@ const char *forward_to_colon(struct object *obj)
 {
     const char *name = strchr(obj->name, ':');
     return name ? name +1 : obj->name;
-}
-
-ck_rv_t object_link(struct object *obj, struct link *link)
-{
-    obj->link = link;
-    struct attr *attr = &obj->attributes;
-    ATTR_ADD_ULONG(attr, CKA_ID, link->pkcs11_id);
-    return CKR_OK;
 }

@@ -9,6 +9,7 @@
 #define _ATTR_H 1
 
 #include "keyutil-pkcs11.h"
+#include "storage.h"
 
 extern unsigned char attr_True, attr_False;
 
@@ -35,6 +36,10 @@ struct attr {
     ATTR_ADD((attr), (type), val, sizeof *val, 0); \
 } while (0)
 
+#define ATTR_ADD_STORAGE(attr, type, _val) do { \
+    ATTR_ADD((attr), (type), (_val)->data, (_val)->len, 0); \
+} while (0)
+
 int attr_init(struct attr *attr);
 void attr_free(struct attr *attr);
 ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
@@ -43,7 +48,5 @@ int attr_match_template(struct attr *attr,
         struct ck_attribute *templ, unsigned long count);
 int attr_fill_template(struct attr *attr,
         struct ck_attribute *templ, unsigned long count);
-unsigned char *attr_i2d(int(*i2d)(const void*, unsigned char **),
-                        const void *data);
 
 #endif

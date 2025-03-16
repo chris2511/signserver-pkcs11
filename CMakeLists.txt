@@ -23,6 +23,7 @@ add_library(keyutils-pkcs11 MODULE
     slot.c slot.h
     link.c link.h
     x509.c x509.h
+    storage.c storage.h
 )
 
 target_link_libraries(keyutils-pkcs11 keyutils OpenSSL::Crypto)

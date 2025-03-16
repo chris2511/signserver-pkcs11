@@ -8,6 +8,7 @@
 #include "x509.h"
 #include "object.h"
 #include "attr.h"
+#include "link.h"
 
 #include <stdlib.h>
 #include <errno.h>
@@ -27,7 +28,8 @@ void x509_free(struct object *obj)
     struct x509 *x509 = object2x509(obj);
     if (x509->certificate)
         X509_free(x509->certificate);
-
+    storage_free(x509->cert_der);
+    storage_free(x509->name_der);
     object_free(obj);
 }
 
@@ -35,22 +37,21 @@ static ck_rv_t x509_collect_attributes(struct object *obj)
 {
     struct x509 *x509 = object2x509(obj);
     struct attr *attr = &obj->attributes;
-    unsigned char *buffer, *p;
-    int len = i2d_X509(x509->certificate, NULL); 
-    buffer = p = OPENSSL_malloc(len);
-    i2d_X509(x509->certificate, &p);
-    ATTR_ADD(attr, CKA_VALUE, buffer, (size_t)len, 1);
-    OPENSSL_free(buffer);
+
     ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_CERTIFICATE);
-    X509_NAME *name = X509_get_subject_name(x509->certificate);
-    if (name) {
-        buffer = p = OPENSSL_malloc(len);
-        i2d_X509_NAME(name, &p);
-        ATTR_ADD(attr, CKA_SUBJECT, buffer, (size_t)len, 1);
-        OPENSSL_free(buffer);
-        X509_NAME_free(name);
-    }
+    ATTR_ADD_STORAGE(attr, CKA_VALUE, x509->cert_der);
+    ATTR_ADD_STORAGE(attr, CKA_SUBJECT, x509->name_der);
+
     return CKR_OK;
+}
+
+static void x509_link_object(struct object *obj, struct link *link)
+{
+    obj->link = link;
+    struct x509 *x509 = object2x509(obj);
+    EVP_PKEY *pkey = X509_get_pubkey(x509->certificate);
+    if (pkey)
+        link_add_pkey(link, pkey);
 }
 
 struct object *x509_init(struct object *obj)
@@ -59,6 +60,7 @@ struct object *x509_init(struct object *obj)
         return NULL;
     struct x509 *x509 = object2x509(obj);
     obj->type = OBJECT_TYPE_CERTIFICATE;
+    obj->do_link = x509_link_object;
 
     DBG("Collect Attributes for '%s'", obj->name);
     unsigned char *buffer;
@@ -71,8 +73,17 @@ struct object *x509_init(struct object *obj)
     }
     p = buffer;
     x509->certificate = d2i_X509(NULL, &p, r);
+    if (p-buffer != r) {
+        fprintf(stderr, "Object:%s: %zu octets ignored\n",
+                obj->name, r-(p-buffer));
+    }
     free(buffer);
-    if (!x509->certificate) {
+    if (x509->certificate) {
+        X509_NAME *name = X509_get_subject_name(x509->certificate);
+        x509->cert_der = storage_I2D(i2d_X509, x509->certificate);
+        x509->name_der = storage_I2D(i2d_X509_NAME, name);
+    }
+    if (!x509->certificate || !x509->cert_der || !x509->name_der) {
         fprintf(stderr, "d2i_X509() failed\n");
         x509_free(obj);
         return NULL;
