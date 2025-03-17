@@ -53,4 +53,8 @@ static inline void copy_spaced_name(const char *name,
     memset(ck_desc, ' ', ck_len);
     memcpy(ck_desc, name, MIN(slen, ck_len));
 }
+
+ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
+        __attribute__((visibility("default")));
+
 #endif

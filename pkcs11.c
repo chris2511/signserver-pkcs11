@@ -27,11 +27,11 @@
 
 int dbg;
 static int initialized = 0;
-struct session sessions[MAX_SESSIONS];
-struct slot slots[MAX_SLOTS];
-ck_slot_id_t n_slots;
+static struct session sessions[MAX_SESSIONS];
+static struct slot slots[MAX_SLOTS];
+static ck_slot_id_t n_slots;
 
-const struct ck_info ckinfo = {
+static const struct ck_info ckinfo = {
     .cryptoki_version = { .major = CRYPTOKI_VERSION_MAJOR,
                           .minor = CRYPTOKI_VERSION_MINOR },
     .manufacturer_id = "Linux Keyutils                  ",
@@ -134,7 +134,7 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
     info->flags = CKF_TOKEN_INITIALIZED | CKF_WRITE_PROTECTED;
 
-    memset(info->model, ' ', sizeof(info->model));
+    memcpy(info->model, "Kernel                          ", sizeof(info->model));
     memset(info->serial_number, ' ', sizeof(info->serial_number));
     info->serial_number[0] = '1';
     info->max_session_count = CK_EFFECTIVELY_INFINITE;
@@ -399,32 +399,88 @@ ck_rv_t C_Sign(ck_session_handle_t session,
     return r;
 }
 
+ck_rv_t C_Unsupported(void)
+{
+    return CKR_FUNCTION_NOT_SUPPORTED;
+}
+#define C_SUPPORTED(namd) . namd = namd
+#define C_UNSUPPORTED(name) . name = (CK_ ## name) C_Unsupported
+
+
 ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
 {
-    extern struct ck_function_list pkcs11_function_list;
-    struct ck_function_list *fl = &pkcs11_function_list;
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+    static struct ck_function_list pkcs11_function_list = {
 
-    fl->version = ckinfo.cryptoki_version;
-    fl->C_Initialize = C_Initialize;
-    fl->C_Finalize = C_Finalize;
-    fl->C_GetInfo = C_GetInfo;
-    fl->C_GetSlotList = C_GetSlotList;
-    fl->C_GetSlotInfo = C_GetSlotInfo;
-    fl->C_GetTokenInfo = C_GetTokenInfo;
-    fl->C_OpenSession = C_OpenSession;
-    fl->C_CloseSession = C_CloseSession;
-    fl->C_CloseAllSessions = C_CloseAllSessions;
-    fl->C_GetSessionInfo = C_GetSessionInfo;
-    fl->C_FindObjectsInit = C_FindObjectsInit;
-    fl->C_FindObjects = C_FindObjects;
-    fl->C_FindObjectsFinal = C_FindObjectsFinal;
-    fl->C_GetAttributeValue = C_GetAttributeValue;
-    fl->C_GetMechanismList = C_GetMechanismList;
-    fl->C_GetMechanismInfo = C_GetMechanismInfo;
-    fl->C_SignInit = C_SignInit;
-    fl->C_SignFinal = C_SignFinal;
-    fl->C_SignUpdate = C_SignUpdate;
-    fl->C_Sign = C_Sign;
-    *function_list = fl;
+      .version = ckinfo.cryptoki_version,
+      C_SUPPORTED(C_Initialize),
+      C_SUPPORTED(C_Finalize),
+      C_SUPPORTED(C_GetInfo),
+      C_SUPPORTED(C_GetSlotList),
+      C_SUPPORTED(C_GetSlotInfo),
+      C_SUPPORTED(C_GetTokenInfo),
+    C_UNSUPPORTED(C_WaitForSlotEvent),
+      C_SUPPORTED(C_GetMechanismList),
+      C_SUPPORTED(C_GetMechanismInfo),
+    C_UNSUPPORTED(C_InitToken),
+    C_UNSUPPORTED(C_InitPIN),
+    C_UNSUPPORTED(C_SetPIN),
+      C_SUPPORTED(C_OpenSession),
+      C_SUPPORTED(C_CloseSession),
+      C_SUPPORTED(C_CloseAllSessions),
+      C_SUPPORTED(C_GetSessionInfo),
+    C_UNSUPPORTED(C_GetOperationState),
+    C_UNSUPPORTED(C_SetOperationState),
+    C_UNSUPPORTED(C_Login),
+    C_UNSUPPORTED(C_Logout),
+    C_UNSUPPORTED(C_CreateObject),
+    C_UNSUPPORTED(C_CopyObject),
+    C_UNSUPPORTED(C_DestroyObject),
+    C_UNSUPPORTED(C_GetObjectSize),
+      C_SUPPORTED(C_GetAttributeValue),
+      C_SUPPORTED(C_FindObjectsInit),
+      C_SUPPORTED(C_FindObjects),
+      C_SUPPORTED(C_FindObjectsFinal),
+    C_UNSUPPORTED(C_EncryptInit),
+    C_UNSUPPORTED(C_Encrypt),
+    C_UNSUPPORTED(C_EncryptUpdate),
+    C_UNSUPPORTED(C_EncryptFinal),
+    C_UNSUPPORTED(C_DecryptInit),
+    C_UNSUPPORTED(C_Decrypt),
+    C_UNSUPPORTED(C_DecryptUpdate),
+    C_UNSUPPORTED(C_DecryptFinal),
+    C_UNSUPPORTED(C_DigestInit),
+    C_UNSUPPORTED(C_Digest),
+    C_UNSUPPORTED(C_DigestUpdate),
+    C_UNSUPPORTED(C_DigestKey),
+    C_UNSUPPORTED(C_DigestFinal),
+      C_SUPPORTED(C_SignInit),
+      C_SUPPORTED(C_Sign),
+      C_SUPPORTED(C_SignUpdate),
+      C_SUPPORTED(C_SignFinal),
+    C_UNSUPPORTED(C_SignRecoverInit),
+    C_UNSUPPORTED(C_SignRecover),
+    C_UNSUPPORTED(C_VerifyInit),
+    C_UNSUPPORTED(C_Verify),
+    C_UNSUPPORTED(C_VerifyUpdate),
+    C_UNSUPPORTED(C_VerifyFinal),
+    C_UNSUPPORTED(C_VerifyRecoverInit),
+    C_UNSUPPORTED(C_VerifyRecover),
+    C_UNSUPPORTED(C_DigestEncryptUpdate),
+    C_UNSUPPORTED(C_DecryptDigestUpdate),
+    C_UNSUPPORTED(C_SignEncryptUpdate),
+    C_UNSUPPORTED(C_DecryptVerifyUpdate),
+    C_UNSUPPORTED(C_GenerateKey),
+    C_UNSUPPORTED(C_GenerateKeyPair),
+    C_UNSUPPORTED(C_WrapKey),
+    C_UNSUPPORTED(C_UnwrapKey),
+    C_UNSUPPORTED(C_DeriveKey),
+    C_UNSUPPORTED(C_SeedRandom),
+    C_UNSUPPORTED(C_GenerateRandom),
+    };
+
+#pragma GCC diagnostic pop
+
+    *function_list = &pkcs11_function_list;
     return CKR_OK;
 }

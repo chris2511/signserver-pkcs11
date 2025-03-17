@@ -17,13 +17,13 @@
 
 const ck_mechanism_type_t rsa_mechs[] = {
         CKM_RSA_PKCS,
-    //    CKM_RSA_X_509,
+        CKM_RSA_X_509,
     //     CKM_RSA_PKCS_OAEP,
-    //     CKM_RSA_PKCS_PSS,
-        CKM_SHA1_RSA_PKCS,
-        CKM_SHA256_RSA_PKCS,
-        CKM_SHA384_RSA_PKCS,
-        CKM_SHA512_RSA_PKCS,
+        CKM_RSA_PKCS_PSS,
+    //    CKM_SHA1_RSA_PKCS,
+    //    CKM_SHA256_RSA_PKCS,
+    //    CKM_SHA384_RSA_PKCS,
+    //    CKM_SHA512_RSA_PKCS,
     //     CKM_SHA1_RSA_PKCS_PSS,
     //     CKM_SHA256_RSA_PKCS_PSS,
     //     CKM_SHA384_RSA_PKCS_PSS,
@@ -40,6 +40,10 @@ static const char *enc_by_id(int id)
         case CKM_SHA384_RSA_PKCS:
         case CKM_SHA512_RSA_PKCS:
             return "enc=pkcs1";
+        case CKM_RSA_PKCS_PSS:
+            return "enc=pss";
+        case CKM_RSA_X_509:
+            return "enc=raw";
         }
         return "";
 }
@@ -134,8 +138,9 @@ ck_rv_t key_sign(struct object *obj,
     long ret = keyctl_pkey_sign(obj->object_id, enc_by_id(key->mechanism.mechanism),
         key->data, key->data_len, signature, sig_len);
     if (ret < 0) {
-        fprintf(stderr, "SIGN Error %ld - %s key:%d(%s) in:%lu out:%zu\n", ret,
-                strerror(errno), obj->object_id, obj->name, key->data_len, sig_len);
+        fprintf(stderr, "SIGN Error %ld - %s key:%d(%s) '%s' in:%lu out:%zu\n", ret,
+                strerror(errno), obj->object_id, obj->name,
+                enc_by_id(key->mechanism.mechanism), key->data_len, sig_len);
         return CKR_GENERAL_ERROR;
     }
 

@@ -8,13 +8,13 @@ project(keyutils-pkcs11
 
 find_package(OpenSSL REQUIRED)
 
-add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+add_compile_options(-Wall -Wextra -Wpedantic -Werror -fvisibility=hidden)
 add_compile_options(-fmacro-prefix-map=${PROJECT_SOURCE_DIR}=.)
 
 find_library(keyutils keyutils)
 
 add_library(keyutils-pkcs11 MODULE
-    pkcs11.c unavailable.c keyutil-pkcs11.h
+    pkcs11.c keyutil-pkcs11.h
     attr.c attr.h
     key.c key.h
     object.c object.h
