@@ -70,6 +70,7 @@ ck_rv_t C_Finalize(void *reserved)
     for (int i = 0; i < MAX_SESSIONS; i++)
         session_free(sessions +i);
     initialized = 0;
+    n_slots = 0;
     return CKR_OK;
 }
 
