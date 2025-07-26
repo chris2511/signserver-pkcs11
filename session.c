@@ -5,10 +5,11 @@
  * All rights reserved.
  */
  
-#include "session.h" 
+#include "session.h"
+#include "object.h" 
 #include <string.h>
 
-struct object *session_object_by_serial(struct session *sess, key_serial_t obj_id)
+struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id)
 {
     struct object *obj;
     if (sess->curr_obj && sess->curr_obj->object_id == obj_id)

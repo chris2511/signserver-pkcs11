@@ -5,10 +5,13 @@
  * All rights reserved.
  */
 
-#include "keyutil-pkcs11.h"
+#include "signserver-pkcs11.h"
+#include "iniparser.h"
 
 #include "session.h"
+#include "object.h"
 #include "key.h"
+#include "slot.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -16,17 +19,17 @@
 #include <stdlib.h>
 #include <limits.h>
 
-#define INITIALIZED if (!initialized) return CKR_CRYPTOKI_NOT_INITIALIZED
+#define INITIALIZED if (!ini) return CKR_CRYPTOKI_NOT_INITIALIZED
 #define CHECKARG(x) if (!(x)) return CKR_ARGUMENTS_BAD;
 #define CHECK_SESSION(session) \
     if (session >= MAX_SESSIONS || sessions[session].slot == NULL) \
         return CKR_SESSION_HANDLE_INVALID;
 #define CHECK_SLOT(slot_id) \
-    if (slot_id >= MAX_SLOTS || slots[slot_id].keyring == 0) \
+    if (slot_id >= MAX_SLOTS || slots[slot_id].section_idx == -1) \
         return CKR_SLOT_ID_INVALID;
 
 int dbg;
-static int initialized = 0;
+static dictionary *ini;
 static struct session sessions[MAX_SESSIONS];
 static struct slot slots[MAX_SLOTS];
 static ck_slot_id_t n_slots;
@@ -34,11 +37,21 @@ static ck_slot_id_t n_slots;
 static const struct ck_info ckinfo = {
     .cryptoki_version = { .major = CRYPTOKI_VERSION_MAJOR,
                           .minor = CRYPTOKI_VERSION_MINOR },
-    .manufacturer_id = "Linux Keyutils                  ",
+    .manufacturer_id = "Keyfactor SignServer            ",
     .flags = 0,
-    .library_description = "Linux Kernel KeyRetentionService",
+    .library_description = "SignServer PlainSigner Signature",
     .library_version = { .major = 0, .minor = 1 }
 };
+
+int iniparser_err(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    fprintf(stderr, COL_MAGENTA "[iniparser]: " COL_RESET);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    return 0;
+}
 
 ck_rv_t C_Initialize(void *init)
 {
@@ -47,14 +60,27 @@ ck_rv_t C_Initialize(void *init)
     dbg = debug && *debug;
     DBG("C_Initialize -------- START");
     
+    if (ini)
+        return CKR_CRYPTOKI_ALREADY_INITIALIZED;
+    iniparser_set_error_callback(iniparser_err);
+
     memset(sessions, 0, sizeof sessions);
     memset(slots, 0, sizeof slots);
-    n_slots = 0;
+    for (int i; i < MAX_SLOTS; i++)
+        slots[i].section_idx = -1; // Unused
 
-    ck_rv_t r = slot_scan(KEY_SPEC_USER_KEYRING, slots, &n_slots);
+    n_slots = 0;
+    const char *ini_file = getenv("SIGNSERVER_PKCS11_INI");
+    if (!ini_file || !*ini_file)
+        ini_file = "/etc/signserver/pkcs11.ini";
+    ini = iniparser_load(ini_file);
+    if (!ini) {
+        DBG("C_Initialize -------- Failed to load %s: %s", ini_file, strerror(errno));
+        return CKR_FUNCTION_FAILED;
+    }   
+    ck_rv_t r = slot_scan(ini, ini_file, slots, &n_slots);
     if (r != CKR_OK)
         return r;
-    initialized = 1;
     DBG("C_Initialize -------- DONE(%lu) Slots: %lu", r, n_slots);
     return CKR_OK;
 }
@@ -69,8 +95,8 @@ ck_rv_t C_Finalize(void *reserved)
         slot_free(slots +i);
     for (int i = 0; i < MAX_SESSIONS; i++)
         session_free(sessions +i);
-    initialized = 0;
     n_slots = 0;
+    iniparser_freedict(ini);
     return CKR_OK;
 }
 
@@ -99,7 +125,7 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
         for (unsigned long i = 0; i < n_slots; i++) {
             slot_list[i] = slots[i].id;
             DBG("Slot ID %lu Key: %d:%s", slot_list[i],
-                slots[i].keyring, slots[i].name);
+                slots[i].section_idx, slots[i].name);
         }
     }
     *count = n_slots;
@@ -135,7 +161,7 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
     info->flags = CKF_TOKEN_INITIALIZED | CKF_WRITE_PROTECTED;
 
-    memcpy(info->model, "Kernel                          ", sizeof(info->model));
+    memcpy(info->model, "Multi SignServer Access         ", sizeof(info->model));
     memset(info->serial_number, ' ', sizeof(info->serial_number));
     info->serial_number[0] = '1';
     info->max_session_count = CK_EFFECTIVELY_INFINITE;
@@ -231,7 +257,7 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
         return CKR_OPERATION_ACTIVE;
     struct slot * slot = sess->slot;
     struct object *obj;
-    DBG("C_FindObjectsInit %lu %d %lu", session, slot->keyring, count);
+    DBG("C_FindObjectsInit %lu %s %lu", session, slot->name, count);
 
     sess->n_found = 0;
     sess->find_pos = 0;
@@ -366,7 +392,7 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
     if (sess->curr_op != 1 || !obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OPERATION_NOT_INITIALIZED;
 
-    return key_data_add(obj, part, part_len);
+    return CKR_OK; // key_data_add(obj, part, part_len);
 }
 
 ck_rv_t C_SignFinal(ck_session_handle_t session,
@@ -385,7 +411,7 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     if (sess->curr_op != 1)
         return CKR_OPERATION_NOT_INITIALIZED;
 
-    ck_rv_t r = key_sign(obj, signature, signature_len);
+    ck_rv_t r = CKR_CANCEL; //key_sign(obj, signature, signature_len);
     sess->curr_op = 0;
     return r;
 }
@@ -406,7 +432,6 @@ ck_rv_t C_Unsupported(void)
 }
 #define C_SUPPORTED(namd) . namd = namd
 #define C_UNSUPPORTED(name) . name = (CK_ ## name) C_Unsupported
-
 
 ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
 {

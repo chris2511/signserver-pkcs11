@@ -31,6 +31,7 @@ const ck_mechanism_type_t rsa_mechs[] = {
 };
 const unsigned long n_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
 
+#if 0
 static const char *enc_by_id(int id)
     {
         switch (id) {
@@ -47,7 +48,7 @@ static const char *enc_by_id(int id)
         }
         return "";
 }
-
+#endif
 static struct key *object2key(struct object *obj)
 {
     return &obj->key;
@@ -74,6 +75,7 @@ void key_free(struct object *obj)
     object_free(obj);
 }
 
+    #if 0
 static ck_rv_t key_collect_attributes(struct object *obj)
 {
     struct key *key = object2key(obj);
@@ -105,11 +107,13 @@ static ck_rv_t key_collect_attributes(struct object *obj)
     }
     return CKR_OK;
 }
+#endif
 
 struct object *key_init(struct object *obj)
 {
     if (!obj)
         return NULL;
+#if 0
 
     struct key *key = object2key(obj);
 
@@ -127,9 +131,12 @@ struct object *key_init(struct object *obj)
         object_free(obj);
         return NULL;
     }
+#endif
+
     return obj;
 }
 
+#if 0
 ck_rv_t key_sign(struct object *obj,
     unsigned char *signature, unsigned long *signature_len)
 {
@@ -164,3 +171,4 @@ ck_rv_t key_data_add(struct object *obj,
     key->data_len += data_len;
     return CKR_OK;
 }
+#endif

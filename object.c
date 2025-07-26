@@ -8,7 +8,6 @@
 #include "object.h"
 #include "key.h"
 #include "attr.h"
-#include "link.h"
 #include "x509.h"
 
 #include <stdlib.h>
@@ -35,18 +34,12 @@ static ck_rv_t object_collect_attributes(struct object *obj)
     return CKR_OK;
 }
 
-static void link_object(struct object *obj, struct link *link)
-{
-    obj->link = link;
-}
-
 static struct object *_object_init(key_serial_t object_id, char *desc)
 {
     DBG("New Object %d %s", object_id, desc);
     struct object *obj = calloc(1, sizeof *obj);
     if (obj) {
         obj->object_id = object_id;
-        obj->do_link = link_object;
         struct attr *attr = &obj->attributes;
         obj->name = dup_keyname(desc);
         if (obj->name) {

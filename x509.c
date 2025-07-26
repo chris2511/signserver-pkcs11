@@ -5,6 +5,8 @@
  * All rights reserved.
  */
 
+#include "signserver-pkcs11.h"
+
 #include "x509.h"
 #include "object.h"
 #include "attr.h"
@@ -46,22 +48,12 @@ static ck_rv_t x509_collect_attributes(struct object *obj)
     return CKR_OK;
 }
 
-static void x509_link_object(struct object *obj, struct link *link)
-{
-    obj->link = link;
-    struct x509 *x509 = object2x509(obj);
-    EVP_PKEY *pkey = X509_get_pubkey(x509->certificate);
-    if (pkey)
-        link_add_pkey(link, pkey);
-}
-
 struct object *x509_init(struct object *obj)
 {
     if (!obj)
         return NULL;
     struct x509 *x509 = object2x509(obj);
     obj->type = OBJECT_TYPE_CERTIFICATE;
-    obj->do_link = x509_link_object;
 
     DBG("Collect Attributes for '%s'", obj->name);
     unsigned char *buffer;

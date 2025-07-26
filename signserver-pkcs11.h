@@ -17,9 +17,9 @@
 
 #include <keyutils.h>
 
+#define MAX_SECTION_NAME 64
 #define MAX_SLOTS 128
 #define MAX_SESSIONS 8
-#define MAX_KEYS 32
 #define MAX_ATTRIBUTES 32
 
 #define COL_CYAN  "\x1b[36m"
@@ -31,11 +31,11 @@
 #define COL_RESET "\x1b[0m"
 
 extern int dbg;
-#define DBG(...) \
+#define DBG(fmt, ...) \
     while (dbg) { \
         fprintf(stderr, COL_MAGENTA "%s" COL_GREEN COL_BOLD ":%d " \
                      COL_BLUE "%s() " COL_RESET , __FILE__, __LINE__, __func__); \
-        fprintf(stderr, __VA_ARGS__); \
+        fprintf(stderr, fmt, ##__VA_ARGS__); \
         fputs("\n", stderr); \
         break; \
     }

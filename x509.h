@@ -8,7 +8,6 @@
 #ifndef _X509_H
 #define _X509_H 1
 
-#include "keyutil-pkcs11.h"
 #include "storage.h"
 
 #include <stddef.h>

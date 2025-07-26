@@ -8,9 +8,9 @@
 #ifndef _SESSION_H
 #define _SESSION_H 1
 
-#include "keyutil-pkcs11.h"
+#include "iniparser/iniparser.h"
+#include "signserver-pkcs11.h"
 #include "slot.h"
-#include "key.h"
 
 struct session {
     struct slot *slot;
@@ -21,6 +21,7 @@ struct session {
     unsigned long find_pos;
     unsigned long n_found;
     struct object **found_objects;
+
 };
 
 static inline struct object *session_curr_obj(struct session *sess)
@@ -28,6 +29,6 @@ static inline struct object *session_curr_obj(struct session *sess)
     return sess->curr_obj;
 }
 
-struct object *session_object_by_serial(struct session *sess, key_serial_t obj_id);
+struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id);
 void session_free(struct session *sess);
 #endif
