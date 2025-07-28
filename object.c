@@ -254,7 +254,6 @@ ck_rv_t obj_sign_final(struct object *obj, struct slot *slot,
     }
     memcpy(signature, buf, readlen);
     *signature_len = readlen;
-    ///////////////// SIGNATURE LOGIC HERE /////////////////
     return CKR_OK;
 }
 
@@ -270,7 +269,13 @@ const ck_mechanism_type_t rsa_mechs[] = {
         CKM_SHA384_RSA_PKCS_PSS,
         CKM_SHA512_RSA_PKCS_PSS,
 };
-const unsigned long n_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
+const unsigned long n_rsa_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
+
+const ck_mechanism_type_t ec_mechs[] = {
+        CKM_ECDSA,
+        CKM_ECDSA_SHA1,
+};
+const unsigned long n_ec_mechs = sizeof ec_mechs / sizeof ec_mechs[0];
 
 static ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
 {
@@ -295,6 +300,7 @@ static ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *ke
         unsigned char buf[1024], *ptr = buf;
         size_t len = sizeof buf;
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_EC);
+        ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, ec_mechs, sizeof ec_mechs, 0);
         EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_EC_GENERATOR,
                                         buf, len, &len);
         if (len == 0 || len > sizeof buf) {
