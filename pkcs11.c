@@ -375,18 +375,11 @@ ck_rv_t C_GetMechanismList(ck_slot_id_t slot_id,
         ck_mechanism_type_t *mechanism_list, unsigned long *count)
 {
     INITIALIZED;
+    CHECK_SLOT(slot_id);
     CHECKARG(count);
-    DBG("Slot ID %lu No. Mechs: %ld", slot_id, n_mechs);
 
-    if (mechanism_list) {
-        if (*count < n_mechs) {
-            *count = n_mechs;
-            return CKR_BUFFER_TOO_SMALL;
-        }
-        memcpy(mechanism_list, rsa_mechs, n_mechs * sizeof(ck_mechanism_type_t));
-    }
-    *count = n_mechs;
-    return CKR_OK;
+    DBG("Slot ID %lu max mechanisms: %ld", slot_id, *count);
+    return key_get_mechanism(slots[slot_id].objects, mechanism_list, count);
 }
 
 ck_rv_t C_GetMechanismInfo(ck_slot_id_t slot_id,
@@ -417,7 +410,7 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
         return CKR_OBJECT_HANDLE_INVALID;
     sess->curr_op = 1;
     sess->curr_obj = obj;
-    return obj_sign_init(obj, mechanism);
+    return key_sign_init(obj, mechanism);
 }
 
 ck_rv_t C_SignUpdate(ck_session_handle_t session,
@@ -435,7 +428,7 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
     if (sess->curr_op != 1 || !obj->bm || !obj->bio)
         return CKR_OPERATION_NOT_INITIALIZED;
     DBG("Session: %lu Part len: %lu", session, part_len);
-    return obj_sign_update(obj, part, part_len);
+    return key_sign_update(obj, part, part_len);
 }
 
 ck_rv_t C_SignFinal(ck_session_handle_t session,
@@ -453,7 +446,7 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
         return CKR_OBJECT_HANDLE_INVALID;
     if (sess->curr_op != 1 || !obj->bm || !obj->bio)
         return CKR_OPERATION_NOT_INITIALIZED;
-    int ret = obj_sign_final(obj, sess->slot, signature, signature_len);
+    int ret = key_sign_final(obj, sess->slot, signature, signature_len);
     sess->curr_op = 0;
     sess->curr_obj = NULL;
     return ret;

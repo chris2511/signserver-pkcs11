@@ -9,27 +9,17 @@
 #define _KEY_H 1
 
 #include "signserver-pkcs11.h"
+#include "object.h"
+
 #include <stddef.h>
 
-struct object;
-
-struct key {
-    struct ck_mechanism mechanism;
-    unsigned char *data;
-    unsigned long data_len;
-};
-
-extern const ck_mechanism_type_t rsa_mechs[];
-extern const unsigned long n_mechs;
-
-struct object *key_init(struct object *obj);
-void key_free(struct object *obj);
-int key_mechanism_dup(struct object *obj, struct ck_mechanism *src);
-#if 0
-ck_rv_t key_sign(struct object *obj,
-    unsigned char *signature, unsigned long *signature_len);
-ck_rv_t key_data_add(struct object *obj,
-    unsigned char *data, unsigned long data_len);
-#endif
+ck_rv_t key_sign_init(struct object *dst, struct ck_mechanism *src);
+ck_rv_t key_sign_update(struct object *obj,
+        unsigned char *part, unsigned long part_len);
+ck_rv_t key_sign_final(struct object *obj, struct slot *slot,
+        unsigned char *signature, unsigned long *signature_len);
+ck_rv_t key_get_mechanism(struct object *obj,
+        ck_mechanism_type_t *mechanism_list, unsigned long *count);
+ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key);
 
 #endif

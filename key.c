@@ -6,169 +6,292 @@
  */
 
 #include "key.h"
-#include "object.h"
 #include "attr.h"
+#include "slot.h"
 
-#include <stdlib.h>
-#include <errno.h>
-#include <string.h>
+#include <openssl/core_names.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+#include <openssl/x509.h>
 
-#include <sys/param.h>
+static int mechanism_to_hashnid(ck_mechanism_type_t mech)
+{
+    switch (mech) {
+        case CKM_ECDSA_SHA1:
+        case CKM_SHA1_RSA_PKCS:
+        case CKM_SHA1_RSA_PKCS_PSS:
+            return NID_sha1;
+        case CKM_SHA256_RSA_PKCS:
+        case CKM_SHA256_RSA_PKCS_PSS:
+            return NID_sha256;
+        case CKM_SHA384_RSA_PKCS:
+        case CKM_SHA384_RSA_PKCS_PSS:
+            return NID_sha384;
+        case CKM_SHA512_RSA_PKCS:
+        case CKM_SHA512_RSA_PKCS_PSS:
+            return NID_sha512;
+        case CKM_ECDSA:
+        case CKM_RSA_PKCS:
+        case CKM_RSA_PKCS_PSS:
+            return NID_undef;
+        default:
+            DBG("Unsupported mechanism %lu", mech);
+            return NID_undef;
+    }
+}
 
-const ck_mechanism_type_t rsa_mechs[] = {
-        CKM_RSA_PKCS,
-        CKM_RSA_X_509,
-    //     CKM_RSA_PKCS_OAEP,
-        CKM_RSA_PKCS_PSS,
-    //    CKM_SHA1_RSA_PKCS,
-    //    CKM_SHA256_RSA_PKCS,
-    //    CKM_SHA384_RSA_PKCS,
-    //    CKM_SHA512_RSA_PKCS,
-    //     CKM_SHA1_RSA_PKCS_PSS,
-    //     CKM_SHA256_RSA_PKCS_PSS,
-    //     CKM_SHA384_RSA_PKCS_PSS,
-    //     CKM_SHA512_RSA_PKCS_PSS,
-};
-const unsigned long n_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
+static int estimate_hash_nid(int hashlen)
+{
+    switch (hashlen) {
+        case SHA_DIGEST_LENGTH: return NID_sha1; break;
+        case SHA256_DIGEST_LENGTH: return NID_sha256; break;
+        case SHA384_DIGEST_LENGTH: return NID_sha384; break;
+        case SHA512_DIGEST_LENGTH: return NID_sha512; break;
+    }
+    return NID_undef;
+}
 
-#if 0
-static const char *enc_by_id(int id)
-    {
-        switch (id) {
+static const char* mechanism_to_signserver_algo(ck_mechanism_type_t mech)
+{
+    switch (mech) {
         case CKM_RSA_PKCS:
         case CKM_SHA1_RSA_PKCS:
         case CKM_SHA256_RSA_PKCS:
         case CKM_SHA384_RSA_PKCS:
         case CKM_SHA512_RSA_PKCS:
-            return "enc=pkcs1";
+            return "NONEwithRSA";
         case CKM_RSA_PKCS_PSS:
-            return "enc=pss";
-        case CKM_RSA_X_509:
-            return "enc=raw";
-        }
-        return "";
-}
-#endif
-static struct key *object2key(struct object *obj)
-{
-    return &obj->key;
-}
-
-int key_mechanism_dup(struct object *dst, struct ck_mechanism *src)
-{
-    struct key *key = object2key(dst);
-    memcpy(&key->mechanism, src, sizeof *src);
-    key->mechanism.parameter = malloc(src->parameter_len);
-    if (!key->mechanism.parameter)
-        return -1;
-    memcpy(key->mechanism.parameter, src->parameter, src->parameter_len);
-    return 0;
-}
-
-void key_free(struct object *obj)
-{
-    struct key *key = object2key(obj);
-    if (key->data)
-        free(key->data);
-    if (key->mechanism.parameter)
-        free(key->mechanism.parameter);
-    object_free(obj);
-}
-
-    #if 0
-static ck_rv_t key_collect_attributes(struct object *obj)
-{
-    struct key *key = object2key(obj);
-    struct attr *attr = &obj->attributes;
-
-    /* Educated guess */
-    if (key->query.key_size > 1024) {
-        ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
-        ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, key->query.key_size);
-        ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs, 0);
+        case CKM_SHA1_RSA_PKCS_PSS:
+        case CKM_SHA256_RSA_PKCS_PSS:
+        case CKM_SHA384_RSA_PKCS_PSS:
+        case CKM_SHA512_RSA_PKCS_PSS:
+            return "NONEwithRSAandMGF1";
+        case CKM_ECDSA:
+        case CKM_ECDSA_SHA1:
+            return "NONEwithECDSA";
+        default:
+            return "";
     }
-
-    unsigned long supported_ops = key->query.supported_ops;
-    if (supported_ops & (KEYCTL_SUPPORTS_DECRYPT | KEYCTL_SUPPORTS_SIGN)) {
-        obj->type = OBJECT_TYPE_PRIVATE_KEY;
-        ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_PRIVATE_KEY);
-        if (supported_ops & KEYCTL_SUPPORTS_DECRYPT)
-            ATTR_ADD_BOOL(attr, CKA_DECRYPT, 1);
-        if (supported_ops & KEYCTL_SUPPORTS_SIGN)
-            ATTR_ADD_BOOL(attr, CKA_SIGN, 1);
-
-    } else if (supported_ops & (KEYCTL_SUPPORTS_ENCRYPT | KEYCTL_SUPPORTS_VERIFY)) {
-        obj->type = OBJECT_TYPE_PUBLIC_KEY;
-        ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_PUBLIC_KEY);
-        if (supported_ops & KEYCTL_SUPPORTS_ENCRYPT)
-            ATTR_ADD_BOOL(attr, CKA_ENCRYPT, 1);
-        if (supported_ops & KEYCTL_SUPPORTS_VERIFY)
-            ATTR_ADD_BOOL(attr, CKA_VERIFY, 1);
-    }
-    return CKR_OK;
-}
-#endif
-
-struct object *key_init(struct object *obj)
-{
-    if (!obj)
-        return NULL;
-#if 0
-
-    struct key *key = object2key(obj);
-
-    DBG("Collect Attributes for '%s'", obj->name);
-    int r = keyctl_pkey_query(obj->object_id, "", &key->query);
-    if (r == -1) {
-        fprintf(stderr, "keyctl_pkey_query %d - %s\n", r, strerror(errno));
-        object_free(obj);
-        return NULL;
-    }
-    DBG("QUERY %u %u %u %u", key->query.max_data_size,
-        key->query.max_dec_size, key->query.max_enc_size,
-        key->query.max_sig_size);
-    if (key_collect_attributes(obj) != CKR_OK) {
-        object_free(obj);
-        return NULL;
-    }
-#endif
-
-    return obj;
 }
 
-#if 0
-ck_rv_t key_sign(struct object *obj,
-    unsigned char *signature, unsigned long *signature_len)
+static int mechanism_is_pkcsv15(ck_mechanism_type_t mech)
 {
-    struct key *key = object2key(obj);
-    size_t sig_len = MIN(key->query.max_sig_size, *signature_len);
-    long ret = keyctl_pkey_sign(obj->object_id, enc_by_id(key->mechanism.mechanism),
-        key->data, key->data_len, signature, sig_len);
-    if (ret < 0) {
-        fprintf(stderr, "SIGN Error %ld - %s key:%d(%s) '%s' in:%lu out:%zu\n", ret,
-                strerror(errno), obj->object_id, obj->name,
-                enc_by_id(key->mechanism.mechanism), key->data_len, sig_len);
-        return CKR_GENERAL_ERROR;
+    switch (mech) {
+        case CKM_RSA_PKCS:
+        case CKM_SHA1_RSA_PKCS:
+        case CKM_SHA256_RSA_PKCS:
+        case CKM_SHA384_RSA_PKCS:
+        case CKM_SHA512_RSA_PKCS:
+            return 1;
+        default:
+            return 0;
     }
-
-    *signature_len = ret;
-    DBG("SIGN OK %ld key:%d(%s) in:%lu out:%lu", ret,
-            obj->object_id, obj->name, key->data_len, sig_len);
-    
-    return CKR_OK;
 }
 
-ck_rv_t key_data_add(struct object *obj,
-    unsigned char *data, unsigned long data_len)
+ck_rv_t key_sign_init(struct object *obj, struct ck_mechanism *mech)
 {
-    struct key *key = object2key(obj);
-    key->data = realloc(key->data, key->data_len + data_len);
-    if (!key->data)
+    if (!obj || !mech)
+        return CKR_ARGUMENTS_BAD;
+    obj->mechanism = mech->mechanism;
+    int nid = mechanism_to_hashnid(obj->mechanism);
+
+    obj->bio = BIO_new(BIO_s_mem());
+    obj->bm = BUF_MEM_new();
+
+    if (!obj->bio || !obj->bm) {
+        DBG("Failed to create BIO for mechanism %lu", mech->mechanism);
         return CKR_HOST_MEMORY;
-    memcpy(key->data + key->data_len, data, data_len);
+    }
+    BIO_set_mem_buf(obj->bio, obj->bm, BIO_NOCLOSE);
+    if (nid != NID_undef) {
+        BIO *digest = BIO_new(BIO_f_md());
+        if (!digest) {
+            DBG("Failed to create BIO for digest %d", nid);
+            return CKR_HOST_MEMORY;
+        }
+        BIO_set_md(digest, EVP_get_digestbynid(nid));
+        obj->bio = BIO_push(digest, obj->bio);
+    }
 
-    DBG("PART %ld + %ld - MECH: %lu", key->data_len, data_len, key->mechanism.mechanism);
-    key->data_len += data_len;
     return CKR_OK;
 }
-#endif
+
+ck_rv_t key_sign_update(struct object *obj,
+        unsigned char *part, unsigned long part_len)
+{
+    return BIO_write(obj->bio, part, part_len) >= 0 ?
+        CKR_OK : CKR_FUNCTION_FAILED;
+}
+
+ck_rv_t key_sign_final(struct object *obj, struct slot *slot,
+        unsigned char *signature, unsigned long *signature_len)
+{
+    BIO_flush(obj->bio);
+    BIO_free_all(obj->bio);
+    obj->bio = NULL;
+    const unsigned char *data = (unsigned char *)obj->bm->data;
+    int len = obj->bm->length;
+    X509_SIG *sig = NULL;
+    int hashnid = mechanism_to_hashnid(obj->mechanism);
+
+    if (mechanism_is_pkcsv15(obj->mechanism)) {
+        DBG("Unpacking PKCS#1 v1.5 envelope %lu", obj->object_id);
+        sig = d2i_X509_SIG(NULL, &data, obj->bm->length);
+        if (!sig) {
+            DBG("Failed to unpack PKCS#1 v1.5 envelope");
+            return CKR_FUNCTION_FAILED;
+        }
+        const ASN1_OCTET_STRING *digest;
+        const X509_ALGOR *algor;
+        X509_SIG_get0(sig, &algor, &digest);
+        data = digest->data;
+        len = digest->length;
+        hashnid = OBJ_obj2nid(algor->algorithm);
+    }
+    if (hashnid == NID_undef) {
+        DBG("No hash algorithm for mechanism %lu - guessing", obj->mechanism);
+        hashnid = estimate_hash_nid(len);   
+    }
+    DBG("Finalizing signature for object %lu", obj->object_id);
+    FILE *fp =fopen("DATA", "w");
+    if (!fp) {
+        DBG("Cannot open DATA file for writing: %s", strerror(errno));
+        if (sig)
+            X509_SIG_free(sig);
+        return CKR_FUNCTION_FAILED;
+    }
+    fwrite(data, 1, len, fp);
+    fclose(fp);
+    if (sig)
+        X509_SIG_free(sig);
+
+    char cmd[1024];
+    snprintf(cmd, sizeof cmd, "curl -v -k --cert-type P12 --cert '%s:%s'"
+        " -F workerName='%s'"
+        " -F data=@DATA"
+        " -F REQUEST_METADATA.CLIENTSIDE_HASHDIGESTALGORITHM=%s"
+        " -F REQUEST_METADATA.USE_CLIENTSUPPLIED_HASH=true"
+        " -F REQUEST_METADATA.SIGNATUREALGORITHM=%s"
+        " '%s/signserver/process'",
+        slot->auth_cert, slot->auth_pass,
+        slot->worker,
+        OBJ_nid2sn(hashnid),
+        mechanism_to_signserver_algo(obj->mechanism),
+        slot->url);
+
+    DBG("Executing command: '%s'", cmd);
+
+    fp = popen(cmd, "r");
+    if (!fp) {
+        DBG("Cannot execute command '%s': %s", cmd, strerror(errno));
+        return CKR_FUNCTION_FAILED;
+    }
+    char buf[1024];
+    size_t readlen = fread(buf, 1, sizeof buf, fp);
+    pclose(fp);
+    if (readlen == 0) {
+        DBG("No data read from command '%s'", cmd);
+        return CKR_FUNCTION_FAILED;
+    }
+    memcpy(signature, buf, readlen);
+    *signature_len = readlen;
+    return CKR_OK;
+}
+
+const ck_mechanism_type_t rsa_mechs[] = {
+        CKM_RSA_PKCS,
+        CKM_RSA_PKCS_PSS,
+        CKM_SHA1_RSA_PKCS,
+        CKM_SHA256_RSA_PKCS,
+        CKM_SHA384_RSA_PKCS,
+        CKM_SHA512_RSA_PKCS,
+        CKM_SHA1_RSA_PKCS_PSS,
+        CKM_SHA256_RSA_PKCS_PSS,
+        CKM_SHA384_RSA_PKCS_PSS,
+        CKM_SHA512_RSA_PKCS_PSS,
+};
+const unsigned long n_rsa_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
+
+const ck_mechanism_type_t ec_mechs[] = {
+        CKM_ECDSA,
+        CKM_ECDSA_SHA1,
+};
+const unsigned long n_ec_mechs = sizeof ec_mechs / sizeof ec_mechs[0];
+
+ck_rv_t key_get_mechanism(struct object *obj,
+        ck_mechanism_type_t *mechanism_list, unsigned long *count)
+{
+    unsigned long n_mechs;
+    const ck_mechanism_type_t *mechs;
+
+    switch (obj->keytype) {
+        case CKK_RSA:
+            mechs = rsa_mechs;
+            n_mechs = n_rsa_mechs;
+            break;
+        case CKK_EC:
+            mechs = ec_mechs;
+            n_mechs = n_ec_mechs;
+            break;
+        default:
+            DBG("Unsupported key type %d", obj->keytype);
+            return CKR_KEY_TYPE_INCONSISTENT;
+    }
+    if (mechanism_list) {
+        if (*count < n_mechs) {
+            *count = n_mechs;
+            return CKR_BUFFER_TOO_SMALL;
+        }
+        memcpy(mechanism_list, mechs, n_mechs * sizeof(ck_mechanism_type_t));
+    }
+    *count = n_mechs;
+    return CKR_OK;
+}
+
+ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
+{
+    struct attr *attr = &obj->attributes;
+    DBG("Key: %lu", obj->object_id);
+
+    if (EVP_PKEY_get_base_id(key) == EVP_PKEY_RSA) {
+        ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
+        ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, EVP_PKEY_bits(key));
+        ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs, 0);
+        obj->store[0] = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_N);
+        ATTR_ADD_STORAGE(attr, CKA_MODULUS, obj->store[0]);
+        obj->store[1] = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_E);
+        ATTR_ADD_STORAGE(attr, CKA_PUBLIC_EXPONENT, obj->store[1]);
+    }
+    if (EVP_PKEY_get_base_id(key) == EVP_PKEY_EC) {
+        unsigned char buf[1024], *ptr = buf;
+        size_t len = sizeof buf;
+        ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_EC);
+        ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, ec_mechs, sizeof ec_mechs, 0);
+        EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_EC_GENERATOR,
+                                        buf, len, &len);
+        if (len == 0 || len > sizeof buf) {
+            DBG("Cannot get EC generator size: %zu", len);
+            return CKR_HOST_MEMORY;
+        }
+        ASN1_OCTET_STRING *os = ASN1_OCTET_STRING_new();
+        ASN1_STRING_set(os, buf, len);
+        int ret = i2d_ASN1_OCTET_STRING(os, &ptr);
+        ASN1_OCTET_STRING_free(os);
+        if (ret < 0) {
+            DBG("Cannot convert EC generator to DER");
+            return CKR_GENERAL_ERROR;
+        }
+        obj->store[0] = storage_new(buf, ret);
+        ATTR_ADD_STORAGE(attr, CKA_EC_POINT, obj->store[0]);
+        #if 0
+        const EC_GROUP *group = EVP_PKEY_get0_EC_KEY(key)->group;
+        if (group) {
+            int curve_nid = EC_GROUP_get_curve_name(group);
+            ATTR_ADD_ULONG(attr, CKA_EC_PARAMS, curve_nid);
+            obj->store[0] = storage_new((unsigned char *)&curve_nid, sizeof(curve_nid));
+            ATTR_ADD_STORAGE(attr, CKA_EC_PARAMS, obj->store[0]);
+        }
+            #endif
+    }
+    return CKR_OK;
+}
