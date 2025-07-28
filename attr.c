@@ -40,7 +40,7 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
         if (!attr->attributes)
             return CKR_HOST_MEMORY;
     }
-    DBG("Add Attributei[%lu] %lu %lu", attr->count, type, value_len);
+//    DBG("Add Attribute[%lu] %lu %lu", attr->count, type, value_len);
     struct ck_attribute *a = attr->attributes + attr->count;
     a->type = type;
     if (attr->count >= sizeof(attr->alloced_bitfield) * 8)
@@ -70,20 +70,23 @@ int attr_match_template(struct attr *attr,
     unsigned long i, j;
     for (i = 0; i < count; i++) {
         struct ck_attribute *tmpl_attr = templ + i;
+        DBG("Check TMPL Attribute[%lu] Type:%lu Len:%lu", i, tmpl_attr->type, tmpl_attr->value_len);
         for (j = 0; j < attr->count; j++) {
             struct ck_attribute *obj_attr = attr->attributes + j;
             if (tmpl_attr->type == obj_attr->type) {
+                DBG("Check Attribute[%lu:%lu] Type:%lu Len:%lu", i, j, tmpl_attr->type, tmpl_attr->value_len);
                 if (tmpl_attr->value_len != obj_attr->value_len)
                     return 0;
                 if (memcmp(tmpl_attr->value, obj_attr->value, tmpl_attr->value_len) != 0)
                     return 0;
-                DBG("Object found %lu:%lu", tmpl_attr->type, tmpl_attr->value_len);
+                DBG("Object found Type:%lu Len:%lu", tmpl_attr->type, tmpl_attr->value_len);
                 break;
             }
         }
         if (j == attr->count)
             unknown = 1;
     }
+    DBG("Attributes matched %lu out of %lu", i, count);
     return unknown ? 2 : 1;
 }
 
@@ -95,8 +98,8 @@ int attr_fill_template(struct attr *attr,
         DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
         unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
         for (unsigned long j = 0; j < attr->count; j++) {
-            DBG("Object Attribute[%lu] %lu %lu", j, attr->attributes[j].type,
-                            attr->attributes[j].value_len);
+//            DBG("Object Attribute[%lu] %lu %lu", j, attr->attributes[j].type,
+//                            attr->attributes[j].value_len);
             if (attr->attributes[j].type != templ[i].type)
                 continue;
             filled++;

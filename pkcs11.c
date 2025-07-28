@@ -12,12 +12,15 @@
 #include "object.h"
 #include "key.h"
 #include "slot.h"
+#include "storage.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <limits.h>
+
+#include <openssl/err.h>
 
 #define INITIALIZED if (!ini) return CKR_CRYPTOKI_NOT_INITIALIZED
 #define CHECKARG(x) if (!(x)) return CKR_ARGUMENTS_BAD;
@@ -56,7 +59,7 @@ int iniparser_err(const char *fmt, ...)
 ck_rv_t C_Initialize(void *init)
 {
     (void)init;
-    const char *debug = getenv("DEBUG");
+    const char *debug = getenv("SIGNSERVER_PKCS11_DEBUG");
     dbg = debug && *debug;
     DBG("C_Initialize -------- START");
     
@@ -97,6 +100,7 @@ ck_rv_t C_Finalize(void *reserved)
         session_free(sessions +i);
     n_slots = 0;
     iniparser_freedict(ini);
+    ini = NULL;
     return CKR_OK;
 }
 
@@ -256,18 +260,17 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
     struct slot * slot = sess->slot;
-    struct object *obj;
     DBG("C_FindObjectsInit %lu %s %lu", session, slot->name, count);
 
     sess->n_found = 0;
     sess->find_pos = 0;
-    sess->found_objects = calloc(slot->n_objects, sizeof(struct object*));
-    for (obj = slot->objects; obj; obj = obj->next) {
-        if (attr_match_template(&obj->attributes, templ, count)) {
+    for (int i=0; i < OBJECT_TYPE_MAX; i++) {
+        struct object *obj = slot->objects +i;
+        if (object_match_attributes(obj, templ, count)) {
             sess->found_objects[sess->n_found++] = obj;
         }
     }
-    DBG("Objects found %lu out of %lu", sess->n_found, slot->n_objects);
+    DBG("Objects found %lu", sess->n_found);
 
     sess->curr_op = 1;
     return CKR_OK;
@@ -310,6 +313,7 @@ ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
     sess->n_found = 0;
     sess->curr_op = 0;
 
+    DBG("Session exit %lu", session);
     return CKR_OK;
 }
 
@@ -328,6 +332,42 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
         return CKR_OBJECT_HANDLE_INVALID;
 
     attr_fill_template(&obj->attributes, templ, count);
+    return CKR_OK;
+}
+
+ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
+		       unsigned char *pin, unsigned long pin_len)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    CHECKARG(pin);
+    DBG("Session: %lu User type: %lu Pin len: %lu", session, user_type, pin_len);
+    struct session *sess = sessions +session;
+
+    if (sess->curr_op != 0)
+        return CKR_OPERATION_ACTIVE;
+    if (user_type != CKU_USER && user_type != CKU_SO)
+        return CKR_USER_TYPE_INVALID;
+    if (sess->slot->pin)
+        return CKR_USER_ALREADY_LOGGED_IN;
+    sess->slot->pin = storage_new(pin, pin_len);
+    return CKR_OK;
+}
+
+ck_rv_t C_Logout(ck_session_handle_t session)
+{
+    INITIALIZED;
+    CHECK_SESSION(session);
+    DBG("Session: %lu", session);
+    struct session *sess = sessions +session;
+
+    if (sess->curr_op != 0)
+        return CKR_OPERATION_ACTIVE;
+    if (!sess->slot->pin)
+        return CKR_USER_NOT_LOGGED_IN;
+
+    storage_free(sess->slot->pin);
+    sess->slot->pin = NULL;
     return CKR_OK;
 }
 
@@ -376,7 +416,8 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
     sess->curr_op = 1;
-    return key_mechanism_dup(obj, mechanism);
+    sess->curr_obj = obj;
+    return obj_sign_init(obj, mechanism);
 }
 
 ck_rv_t C_SignUpdate(ck_session_handle_t session,
@@ -389,10 +430,12 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
     struct session *sess = sessions +session;
     struct object *obj = session_curr_obj(sess);
 
-    if (sess->curr_op != 1 || !obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
+    if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
+        return CKR_OBJECT_HANDLE_INVALID;
+    if (sess->curr_op != 1 || !obj->bm || !obj->bio)
         return CKR_OPERATION_NOT_INITIALIZED;
-
-    return CKR_OK; // key_data_add(obj, part, part_len);
+    DBG("Session: %lu Part len: %lu", session, part_len);
+    return obj_sign_update(obj, part, part_len);
 }
 
 ck_rv_t C_SignFinal(ck_session_handle_t session,
@@ -408,12 +451,12 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     struct object *obj = session_curr_obj(sess);
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
-    if (sess->curr_op != 1)
+    if (sess->curr_op != 1 || !obj->bm || !obj->bio)
         return CKR_OPERATION_NOT_INITIALIZED;
-
-    ck_rv_t r = CKR_CANCEL; //key_sign(obj, signature, signature_len);
+    int ret = obj_sign_final(obj, sess->slot, signature, signature_len);
     sess->curr_op = 0;
-    return r;
+    sess->curr_obj = NULL;
+    return ret;
 }
 
 ck_rv_t C_Sign(ck_session_handle_t session,
@@ -457,8 +500,8 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
       C_SUPPORTED(C_GetSessionInfo),
     C_UNSUPPORTED(C_GetOperationState),
     C_UNSUPPORTED(C_SetOperationState),
-    C_UNSUPPORTED(C_Login),
-    C_UNSUPPORTED(C_Logout),
+      C_SUPPORTED(C_Login),
+      C_SUPPORTED(C_Logout),
     C_UNSUPPORTED(C_CreateObject),
     C_UNSUPPORTED(C_CopyObject),
     C_UNSUPPORTED(C_DestroyObject),

@@ -29,6 +29,6 @@ struct storage *storage_i2d(int(*i2d)(const void*, unsigned char **),
     (int (*)(const void *, unsigned char **))(i2d), (const void *)(data))
 
 struct storage *storage_BN(BIGNUM *bn);
-struct storage *storage_PKEY(EVP_PKEY *pkey, const char *param);
+struct storage *storage_PKEY(const EVP_PKEY *pkey, const char *param);
 
 #endif

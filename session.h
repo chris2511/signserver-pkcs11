@@ -20,8 +20,7 @@ struct session {
     /* FindObjects*() data */
     unsigned long find_pos;
     unsigned long n_found;
-    struct object **found_objects;
-
+    struct object *found_objects[OBJECT_TYPE_MAX];
 };
 
 static inline struct object *session_curr_obj(struct session *sess)

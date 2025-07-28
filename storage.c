@@ -48,7 +48,7 @@ struct storage *storage_BN(BIGNUM *bn)
     return s;
 }
 
-struct storage *storage_PKEY(EVP_PKEY *pkey, const char *param)
+struct storage *storage_PKEY(const EVP_PKEY *pkey, const char *param)
 {
     BIGNUM *bn = NULL;
     if (EVP_PKEY_get_bn_param(pkey, param, &bn) > 0) {

@@ -10,25 +10,27 @@
 
 #include "iniparser.h"
 #include "object.h"
-#include "link.h"
 #include <openssl/x509.h>
 
 struct slot {
     ck_slot_id_t id;
     const char *name;
     int section_idx;
+    dictionary *ini;
     /* Key management */
     X509 *certificate;
     const char *auth_cert;
     const char *auth_pass;
     const char *worker;
     const char *url;
-    unsigned long n_objects;
-    struct object *objects;
+    const char *label;
+    struct storage *pin;
+    struct object objects[OBJECT_TYPE_MAX];
     
 };
 
 void slot_free(struct slot *slot);
 ck_rv_t slot_scan(dictionary *ini, const char *filename, struct slot *slots, ck_slot_id_t *n_slots);
+const char *slot_get_ini_entry(const struct slot *slot, const char *key, const char *def);
 
 #endif
