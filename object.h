@@ -12,6 +12,8 @@
 #include "attr.h"
 #include <openssl/bio.h>
 
+#define OBJ_ID_OFFSET 0x25ad7 
+
 enum object_type {
     OBJECT_TYPE_PUBLIC_KEY,
     OBJECT_TYPE_PRIVATE_KEY,
@@ -27,7 +29,6 @@ struct object {
     unsigned long mechanism;
     BIO *bio;
     BUF_MEM *bm;
-    struct storage *store[4];
 };
 
 struct slot;

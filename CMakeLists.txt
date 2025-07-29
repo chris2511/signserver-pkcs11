@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.13.0)
 
-project(keyutils-pkcs11
+project(signserver-pkcs11
     VERSION 0.1.0
-    DESCRIPTION "PKCS#11 key utility"
+    DESCRIPTION "PKCS#11 library for Keyfactor SignServer"
     LANGUAGES C
 )
 

@@ -11,11 +11,12 @@
 
 struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id)
 {
-    if (obj_id >= OBJECT_TYPE_MAX) {
-        DBG("Invalid object ID: %lu", obj_id);
-        return NULL;
+    for (int i = 0; i < OBJECT_TYPE_MAX; i++) {
+        if (sess->slot->objects[i].object_id == obj_id)
+            return sess->slot->objects + i;
     }
-    return sess->slot->objects + obj_id;
+    DBG("Invalid object ID: %lu", obj_id);
+    return NULL;
 }
 
 void session_free(struct session *sess)

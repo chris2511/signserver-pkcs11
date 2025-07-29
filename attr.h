@@ -38,7 +38,8 @@ struct attr {
 
 #define ATTR_ADD_STORAGE(attr, type, _val) do { \
     if (!(_val)) return CKR_ARGUMENTS_BAD; \
-    ATTR_ADD((attr), (type), (_val)->data, (_val)->len, 0); \
+    ATTR_ADD((attr), (type), (_val)->data, (_val)->len, 1); \
+    storage_free(_val); \
 } while (0)
 
 int attr_init(struct attr *attr);

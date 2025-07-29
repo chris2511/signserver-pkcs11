@@ -18,11 +18,6 @@
 
 void object_free(struct object *obj)
 {
-    for (unsigned long i=0; i < sizeof obj->store / sizeof obj->store[0]; i++) {
-        if (obj->store[i])
-            storage_free(obj->store[i]);
-        obj->store[i] = NULL;
-    }
     if (obj->bio) {
         BIO_free_all(obj->bio);
         obj->bio = NULL;
@@ -84,15 +79,17 @@ int object_match_attributes(struct object *obj, struct ck_attribute *templ, unsi
 
 static ck_rv_t x509_collect_attributes(struct object *obj, const X509 *cert)
 {
+    struct storage *store;
+
     struct attr *attr = &obj->attributes;
     ATTR_ADD_ULONG(attr, CKA_CLASS, CKO_CERTIFICATE);
     ATTR_ADD_ULONG(attr, CKA_CERTIFICATE_TYPE, CKC_X_509);
     ATTR_ADD_BOOL(attr, CKA_EXTRACTABLE, 1);
     ATTR_ADD_BOOL(attr, CKA_NEVER_EXTRACTABLE, 0);
-    obj->store[0] = storage_I2D(i2d_X509, cert);
-    ATTR_ADD_STORAGE(attr, CKA_VALUE, obj->store[0]);
-    obj->store[1] = storage_I2D(i2d_X509_NAME, X509_get_subject_name(cert));
-    ATTR_ADD_STORAGE(attr, CKA_SUBJECT,  obj->store[1]);
+    store = storage_I2D(i2d_X509, cert);
+    ATTR_ADD_STORAGE(attr, CKA_VALUE, store);
+    store = storage_I2D(i2d_X509_NAME, X509_get_subject_name(cert));
+    ATTR_ADD_STORAGE(attr, CKA_SUBJECT, store);
 
     return CKR_OK;
 }
@@ -100,7 +97,7 @@ static ck_rv_t x509_collect_attributes(struct object *obj, const X509 *cert)
 ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert)
 {
     obj->type = type;
-    obj->object_id = (ck_object_handle_t)type;
+    obj->object_id = (ck_object_handle_t)type +OBJ_ID_OFFSET;
     object_init(obj);
 
     struct attr *attr = &obj->attributes;

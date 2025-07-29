@@ -5,8 +5,8 @@
  * All rights reserved.
  */
 
-#ifndef _KEYUTIL_PKCS11_H
-#define _KEYUTIL_PKCS11_H 1
+#ifndef _SIGNSERVER_PKCS11_H
+#define _SIGNSERVER_PKCS11_H 1
 
 #define CRYPTOKI_GNU
 #include "opensc-pkcs11.h"
@@ -14,8 +14,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
-
-#include <keyutils.h>
 
 #define MAX_SECTION_NAME 64
 #define MAX_SLOTS 128

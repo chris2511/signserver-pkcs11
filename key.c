@@ -150,7 +150,7 @@ ck_rv_t key_sign_final(struct object *obj, struct slot *slot,
     }
     if (hashnid == NID_undef) {
         DBG("No hash algorithm for mechanism %lu - guessing", obj->mechanism);
-        hashnid = estimate_hash_nid(len);   
+        hashnid = estimate_hash_nid(len);
     }
     DBG("Finalizing signature for object %lu", obj->object_id);
     FILE *fp =fopen("DATA", "w");
@@ -225,11 +225,11 @@ ck_rv_t key_get_mechanism(struct object *obj,
     const ck_mechanism_type_t *mechs;
 
     switch (obj->keytype) {
-        case CKK_RSA:
+        case EVP_PKEY_RSA:
             mechs = rsa_mechs;
             n_mechs = n_rsa_mechs;
             break;
-        case CKK_EC:
+        case EVP_PKEY_EC:
             mechs = ec_mechs;
             n_mechs = n_ec_mechs;
             break;
@@ -252,46 +252,61 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
 {
     struct attr *attr = &obj->attributes;
     DBG("Key: %lu", obj->object_id);
-
+    struct storage *store;
     if (EVP_PKEY_get_base_id(key) == EVP_PKEY_RSA) {
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
         ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, EVP_PKEY_bits(key));
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs, 0);
-        obj->store[0] = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_N);
-        ATTR_ADD_STORAGE(attr, CKA_MODULUS, obj->store[0]);
-        obj->store[1] = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_E);
-        ATTR_ADD_STORAGE(attr, CKA_PUBLIC_EXPONENT, obj->store[1]);
+        store = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_N);
+        ATTR_ADD_STORAGE(attr, CKA_MODULUS, store);
+        store = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_E);
+        ATTR_ADD_STORAGE(attr, CKA_PUBLIC_EXPONENT, store);
     }
     if (EVP_PKEY_get_base_id(key) == EVP_PKEY_EC) {
-        unsigned char buf[1024], *ptr = buf;
-        size_t len = sizeof buf;
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_EC);
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, ec_mechs, sizeof ec_mechs, 0);
+
+#if 0
+        const OSSL_PARAM *pa = EVP_PKEY_gettable_params(key);
+    while (pa && pa->key) {
+        DBG("Param: %s Type: %d", pa->key, pa->data_type);
+       pa++;
+    }
+#endif
+        unsigned char buf[1024], *ptr = buf;
+        size_t len = sizeof buf;
+        char grpname[256];
+        if (EVP_PKEY_get_group_name(key, grpname, sizeof grpname, NULL) > 0) {
+            DBG("EC group name: %s", grpname);
+            int nid = OBJ_txt2nid(grpname);
+            EC_GROUP *group = EC_GROUP_new_by_curve_name(nid);
+            if (group) {
+                len = i2d_ECPKParameters(group, &ptr);
+                if (len > 0) {
+                    ATTR_ADD(attr, CKA_EC_PARAMS, buf, len, 1);
+                } else {
+                    DBG("Failed to convert EC parameters to DER");
+                }
+                EC_GROUP_free(group);
+            }
+        }
         EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_EC_GENERATOR,
-                                        buf, len, &len);
+                                        buf, sizeof buf, &len);
+        DBG("EC generator length: %zu", len);
         if (len == 0 || len > sizeof buf) {
             DBG("Cannot get EC generator size: %zu", len);
             return CKR_HOST_MEMORY;
         }
         ASN1_OCTET_STRING *os = ASN1_OCTET_STRING_new();
         ASN1_STRING_set(os, buf, len);
+        ptr = buf +len;
         int ret = i2d_ASN1_OCTET_STRING(os, &ptr);
         ASN1_OCTET_STRING_free(os);
         if (ret < 0) {
             DBG("Cannot convert EC generator to DER");
             return CKR_GENERAL_ERROR;
         }
-        obj->store[0] = storage_new(buf, ret);
-        ATTR_ADD_STORAGE(attr, CKA_EC_POINT, obj->store[0]);
-        #if 0
-        const EC_GROUP *group = EVP_PKEY_get0_EC_KEY(key)->group;
-        if (group) {
-            int curve_nid = EC_GROUP_get_curve_name(group);
-            ATTR_ADD_ULONG(attr, CKA_EC_PARAMS, curve_nid);
-            obj->store[0] = storage_new((unsigned char *)&curve_nid, sizeof(curve_nid));
-            ATTR_ADD_STORAGE(attr, CKA_EC_PARAMS, obj->store[0]);
-        }
-            #endif
+        ATTR_ADD(attr, CKA_EC_POINT, buf +len, ret, 1);
     }
     return CKR_OK;
 }

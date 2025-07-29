@@ -16,7 +16,6 @@ struct storage {
     size_t len;
     unsigned char data[1];
 };
-
 struct storage *storage_new(unsigned char *data, size_t len);
 static inline void storage_free(struct storage *s)
 {

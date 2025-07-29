@@ -62,14 +62,14 @@ ck_rv_t C_Initialize(void *init)
     const char *debug = getenv("SIGNSERVER_PKCS11_DEBUG");
     dbg = debug && *debug;
     DBG("C_Initialize -------- START");
-    
+
     if (ini)
         return CKR_CRYPTOKI_ALREADY_INITIALIZED;
     iniparser_set_error_callback(iniparser_err);
 
     memset(sessions, 0, sizeof sessions);
     memset(slots, 0, sizeof slots);
-    for (int i; i < MAX_SLOTS; i++)
+    for (int i=0; i < MAX_SLOTS; i++)
         slots[i].section_idx = -1; // Unused
 
     n_slots = 0;
@@ -80,7 +80,7 @@ ck_rv_t C_Initialize(void *init)
     if (!ini) {
         DBG("C_Initialize -------- Failed to load %s: %s", ini_file, strerror(errno));
         return CKR_FUNCTION_FAILED;
-    }   
+    }
     ck_rv_t r = slot_scan(ini, ini_file, slots, &n_slots);
     if (r != CKR_OK)
         return r;
@@ -90,7 +90,8 @@ ck_rv_t C_Initialize(void *init)
 
 ck_rv_t C_Finalize(void *reserved)
 {
-    (void)reserved;
+    if (reserved)
+        return CKR_ARGUMENTS_BAD;
     DBG("C_Finalize");
     INITIALIZED;
 
@@ -464,6 +465,7 @@ ck_rv_t C_Sign(ck_session_handle_t session,
 
 ck_rv_t C_Unsupported(void)
 {
+    INITIALIZED;
     return CKR_FUNCTION_NOT_SUPPORTED;
 }
 #define C_SUPPORTED(namd) . namd = namd
