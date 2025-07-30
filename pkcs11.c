@@ -349,9 +349,9 @@ ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
         return CKR_OPERATION_ACTIVE;
     if (user_type != CKU_USER && user_type != CKU_SO)
         return CKR_USER_TYPE_INVALID;
-    if (sess->slot->pin)
+    if (sess->pin)
         return CKR_USER_ALREADY_LOGGED_IN;
-    sess->slot->pin = storage_new(pin, pin_len);
+    sess->pin = storage_new(pin, pin_len);
     return CKR_OK;
 }
 
@@ -364,11 +364,11 @@ ck_rv_t C_Logout(ck_session_handle_t session)
 
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
-    if (!sess->slot->pin)
+    if (!sess->pin)
         return CKR_USER_NOT_LOGGED_IN;
 
-    storage_free(sess->slot->pin);
-    sess->slot->pin = NULL;
+    storage_free(sess->pin);
+    sess->pin = NULL;
     return CKR_OK;
 }
 

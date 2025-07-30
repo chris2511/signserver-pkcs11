@@ -7,6 +7,7 @@
  
 #include "session.h"
 #include "object.h" 
+#include "storage.h" 
 #include <string.h>
 
 struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id)
@@ -21,5 +22,7 @@ struct object *session_object_by_serial(struct session *sess, ck_object_handle_t
 
 void session_free(struct session *sess)
 {
-    memset(sess, 0, sizeof(struct session));
+    storage_free(sess->pin);
+    signature_op_free(&sess->signature);
+    memset(sess, 0, sizeof *sess);
 }

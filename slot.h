@@ -24,7 +24,6 @@ struct slot {
     const char *worker;
     const char *url;
     const char *label;
-    struct storage *pin;
     struct object objects[OBJECT_TYPE_MAX];
     
 };

@@ -21,6 +21,7 @@ struct session {
     /* FindObjects*() data */
     unsigned long find_pos;
     unsigned long n_found;
+    struct storage *pin;
     struct signature_op signature;
     struct object *found_objects[OBJECT_TYPE_MAX];
 };

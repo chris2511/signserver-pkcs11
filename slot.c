@@ -23,10 +23,6 @@ void slot_free(struct slot *slot)
     if (slot->certificate)
         X509_free(slot->certificate);
     memset(slot, 0, sizeof(struct slot));
-    if (slot->pin) {
-        storage_free(slot->pin);
-        slot->pin = NULL;
-    }
 }
 
 const char *slot_get_ini_entry(const struct slot *slot,
