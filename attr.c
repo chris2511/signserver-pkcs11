@@ -95,7 +95,7 @@ int attr_fill_template(struct attr *attr,
 {
     unsigned long filled = 0;
     for (unsigned long i = 0; i < count; i++) {
-        DBG("Attribute %lu %lu", templ[i].type, templ[i].value_len);
+        DBG("Attribute 0x%lx %lu", templ[i].type, templ[i].value_len);
         unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
         for (unsigned long j = 0; j < attr->count; j++) {
 //            DBG("Object Attribute[%lu] %lu %lu", j, attr->attributes[j].type,
@@ -112,6 +112,10 @@ int attr_fill_template(struct attr *attr,
                 }
             }
             break;
+        }
+        if (new_len == CK_UNAVAILABLE_INFORMATION) {
+            DBG("Attribute 0x%lx not found", templ[i].type);
+            continue;
         }
         templ[i].value_len = new_len;
     }

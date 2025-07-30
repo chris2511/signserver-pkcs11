@@ -9,7 +9,7 @@
 #define _SIGNSERVER_PKCS11_H 1
 
 #define CRYPTOKI_GNU
-#include "opensc-pkcs11.h"
+#include "pkcs11.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>

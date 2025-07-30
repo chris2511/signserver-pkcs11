@@ -8,7 +8,8 @@
 #ifndef _OBJECT_H
 #define _OBJECT_H 1
 
-#include "signserver-pkcs11.h"
+#define CRYPTOKI_GNU
+#include "pkcs11.h"
 #include "attr.h"
 #include <openssl/bio.h>
 
