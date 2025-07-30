@@ -154,6 +154,7 @@ extern "C" {
 #define ck_mechanism_type_t CK_MECHANISM_TYPE
 
 #define ck_rsa_pkcs_mgf_type_t CK_RSA_PKCS_MGF_TYPE
+#define ck_rsa_pkcs_oaep_source_type_t CK_RSA_PKCS_OAEP_SOURCE_TYPE
 
 #define ck_generator_function_t CK_GENERATOR_FUNCTION
 
@@ -902,28 +903,28 @@ typedef struct CK_ECMQV_DERIVE_PARAMS {
 	unsigned long ulPublicDataLen;
 	unsigned char * pPublicData;
 	unsigned long ulPrivateDataLen;
-	CK_OBJECT_HANDLE hPrivateData;
+	ck_object_handle_t hPrivateData;
 	unsigned long ulPublicDataLen2;
 	unsigned char * pPublicData2;
-	CK_OBJECT_HANDLE publicKey;
+	ck_object_handle_t publicKey;
 } CK_ECMQV_DERIVE_PARAMS;
 
 typedef unsigned long ck_rsa_pkcs_mgf_type_t;
-typedef unsigned long CK_RSA_PKCS_OAEP_SOURCE_TYPE;
+typedef unsigned long ck_rsa_pkcs_oaep_source_type_t;
 
 typedef unsigned long ck_generator_function_t;
 
 typedef struct CK_RSA_PKCS_OAEP_PARAMS {
-	CK_MECHANISM_TYPE hashAlg;
-	CK_RSA_PKCS_MGF_TYPE mgf;
-	CK_RSA_PKCS_OAEP_SOURCE_TYPE source;
+	ck_mechanism_type_t hashAlg;
+	ck_rsa_pkcs_mgf_type_t mgf;
+	ck_rsa_pkcs_oaep_source_type_t source;
 	void *pSourceData;
 	unsigned long ulSourceDataLen;
 } CK_RSA_PKCS_OAEP_PARAMS;
 
 typedef struct CK_RSA_PKCS_PSS_PARAMS {
 	ck_mechanism_type_t hashAlg;
-	CK_RSA_PKCS_MGF_TYPE mgf;
+	ck_rsa_pkcs_mgf_type_t mgf;
 	unsigned long sLen;
 } CK_RSA_PKCS_PSS_PARAMS;
 
@@ -959,7 +960,7 @@ typedef struct CK_GCM_MESSAGE_PARAMS {
 	void *pIv;
 	unsigned long ulIvLen;
 	unsigned long ulIvFixedBits;
-	CK_GENERATOR_FUNCTION ivGenerator;
+	ck_generator_function_t ivGenerator;
 	void *pTag;
 	unsigned long ulTagBits;
 } CK_GCM_MESSAGE_PARAMS;
@@ -1900,6 +1901,7 @@ typedef struct ck_c_initialize_args *CK_C_INITIALIZE_ARGS_PTR;
 #undef ck_mechanism_type_t
 
 #undef ck_rsa_pkcs_mgf_type_t
+#undef ck_rsa_pkcs_oaep_source_type_t
 
 #undef ck_generator_function_t
 
