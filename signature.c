@@ -249,23 +249,14 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
                 EC_GROUP_free(group);
             }
         }
-        EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_EC_GENERATOR,
+        EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_PUB_KEY,
                                         buf, sizeof buf, &len);
         DBG("EC generator length: %zu", len);
         if (len == 0 || len > sizeof buf) {
             DBG("Cannot get EC generator size: %zu", len);
             return CKR_HOST_MEMORY;
         }
-        ASN1_OCTET_STRING *os = ASN1_OCTET_STRING_new();
-        ASN1_STRING_set(os, buf, len);
-        ptr = buf +len;
-        int ret = i2d_ASN1_OCTET_STRING(os, &ptr);
-        ASN1_OCTET_STRING_free(os);
-        if (ret < 0) {
-            DBG("Cannot convert EC generator to DER");
-            return CKR_GENERAL_ERROR;
-        }
-        ATTR_ADD(attr, CKA_EC_POINT, buf +len, ret, 1);
+        ATTR_ADD(attr, CKA_EC_POINT, buf, len, 1);
     }
     return CKR_OK;
 }
