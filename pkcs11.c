@@ -10,7 +10,7 @@
 
 #include "session.h"
 #include "object.h"
-#include "key.h"
+#include "signature.h"
 #include "slot.h"
 #include "storage.h"
 
@@ -403,7 +403,7 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     struct session *sess = sessions +session;
     DBG("Session: %lu Key: %lu", session, key_id);
 
-    if (sess->curr_op != 0)
+    if (sess->curr_op != 0 || sess->signature.obj)
         return CKR_OPERATION_ACTIVE;
 
     struct object *obj = session_object_by_serial(sess, key_id);
@@ -411,7 +411,10 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
         return CKR_OBJECT_HANDLE_INVALID;
     sess->curr_op = 1;
     sess->curr_obj = obj;
-    return key_sign_init(obj, mechanism);
+    sess->signature.obj = obj;
+    sess->signature.mechanism = mechanism->mechanism;
+
+    return signature_op_init(&sess->signature);
 }
 
 ck_rv_t C_SignUpdate(ck_session_handle_t session,
@@ -426,10 +429,10 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
 
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
-    if (sess->curr_op != 1 || !obj->bm || !obj->bio)
+    if (sess->curr_op != 1 || !sess->signature.obj)
         return CKR_OPERATION_NOT_INITIALIZED;
     DBG("Session: %lu Part len: %lu", session, part_len);
-    return key_sign_update(obj, part, part_len);
+    return signature_op_update(&sess->signature, part, part_len);
 }
 
 ck_rv_t C_SignFinal(ck_session_handle_t session,
@@ -445,11 +448,11 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     struct object *obj = session_curr_obj(sess);
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
-    if (sess->curr_op != 1 || !obj->bm || !obj->bio)
+    if (sess->curr_op != 1 || !sess->signature.obj)
         return CKR_OPERATION_NOT_INITIALIZED;
-    int ret = key_sign_final(obj, sess->slot, signature, signature_len);
+    int ret = signature_op_final(&sess->signature, sess->slot, signature, signature_len);
     sess->curr_op = 0;
-    sess->curr_obj = NULL;
+    signature_op_free(&sess->signature);
     return ret;
 }
 

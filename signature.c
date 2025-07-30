@@ -5,7 +5,7 @@
  * All rights reserved.
  */
 
-#include "key.h"
+#include "signature.h"
 #include "attr.h"
 #include "slot.h"
 
@@ -88,21 +88,29 @@ static int mechanism_is_pkcsv15(ck_mechanism_type_t mech)
     }
 }
 
-ck_rv_t key_sign_init(struct object *obj, struct ck_mechanism *mech)
+void signature_op_free(struct signature_op *op)
 {
-    if (!obj || !mech)
+    if (op->bio)
+        BIO_free_all(op->bio);
+    if (op->bm)
+        BUF_MEM_free(op->bm);
+    memset(op, 0, sizeof *op);
+}
+
+ck_rv_t signature_op_init(struct signature_op *sig)
+{
+    if (!sig)
         return CKR_ARGUMENTS_BAD;
-    obj->mechanism = mech->mechanism;
-    int nid = mechanism_to_hashnid(obj->mechanism);
+    int nid = mechanism_to_hashnid(sig->mechanism);
 
-    obj->bio = BIO_new(BIO_s_mem());
-    obj->bm = BUF_MEM_new();
+    sig->bio = BIO_new(BIO_s_mem());
+    sig->bm = BUF_MEM_new();
 
-    if (!obj->bio || !obj->bm) {
-        DBG("Failed to create BIO for mechanism %lu", mech->mechanism);
+    if (!sig->bio || !sig->bm) {
+        DBG("Failed to create BIO for mechanism %lu", sig->mechanism);
         return CKR_HOST_MEMORY;
     }
-    BIO_set_mem_buf(obj->bio, obj->bm, BIO_NOCLOSE);
+    BIO_set_mem_buf(sig->bio, sig->bm, BIO_NOCLOSE);
     if (nid != NID_undef) {
         BIO *digest = BIO_new(BIO_f_md());
         if (!digest) {
@@ -110,60 +118,73 @@ ck_rv_t key_sign_init(struct object *obj, struct ck_mechanism *mech)
             return CKR_HOST_MEMORY;
         }
         BIO_set_md(digest, EVP_get_digestbynid(nid));
-        obj->bio = BIO_push(digest, obj->bio);
+        sig->bio = BIO_push(digest, sig->bio);
     }
-
     return CKR_OK;
 }
 
-ck_rv_t key_sign_update(struct object *obj,
+ck_rv_t signature_op_update(struct signature_op *sig,
         unsigned char *part, unsigned long part_len)
 {
-    return BIO_write(obj->bio, part, part_len) >= 0 ?
+    if (!sig || !sig->bio || !part || part_len == 0) {
+        DBG("Invalid arguments for key_sign_update");
+        return CKR_ARGUMENTS_BAD;
+    }
+    return BIO_write(sig->bio, part, part_len) >= 0 ?
         CKR_OK : CKR_FUNCTION_FAILED;
 }
 
-ck_rv_t key_sign_final(struct object *obj, struct slot *slot,
+static int unpack_pkcs15_signature(struct signature_op *sig)
+{
+    DBG("Unpacking PKCS#1 v1.5 envelope %lu", sig->obj->object_id);
+    const unsigned char *p = (unsigned char *)sig->bm->data;
+    X509_SIG *xsig = d2i_X509_SIG(NULL, &p, sig->bm->length);
+    if (!xsig) {
+        DBG("Failed to unpack PKCS#1 v1.5 envelope");
+        return NID_undef;
+    }
+    BIO_free_all(sig->bio);
+    sig->bio = NULL;
+    const ASN1_OCTET_STRING *digest;
+    const X509_ALGOR *algor;
+    X509_SIG_get0(xsig, &algor, &digest);
+
+    //  sig->bm is large enough, check anyway
+    if (sig->bm->length < (size_t)digest->length) {
+        DBG("Failed to grow BUF_MEM for PKCS#1 v1.5 envelope");
+        X509_SIG_free(xsig);
+        return NID_undef;
+    }
+    // Write the digest to the BIO
+    memcpy(sig->bm->data, digest->data, digest->length);
+    sig->bm->length = digest->length;
+
+    // extract hashnid before freeing xsig
+    int hashnid = OBJ_obj2nid(algor->algorithm);
+    X509_SIG_free(xsig);
+    return hashnid;
+}
+
+ck_rv_t signature_op_final(struct signature_op *sig, struct slot *slot,
         unsigned char *signature, unsigned long *signature_len)
 {
-    BIO_flush(obj->bio);
-    BIO_free_all(obj->bio);
-    obj->bio = NULL;
-    const unsigned char *data = (unsigned char *)obj->bm->data;
-    int len = obj->bm->length;
-    X509_SIG *sig = NULL;
-    int hashnid = mechanism_to_hashnid(obj->mechanism);
+    BIO_flush(sig->bio);
+    int hashnid = mechanism_to_hashnid(sig->mechanism);
+    if (mechanism_is_pkcsv15(sig->mechanism))
+        hashnid = unpack_pkcs15_signature(sig);
 
-    if (mechanism_is_pkcsv15(obj->mechanism)) {
-        DBG("Unpacking PKCS#1 v1.5 envelope %lu", obj->object_id);
-        sig = d2i_X509_SIG(NULL, &data, obj->bm->length);
-        if (!sig) {
-            DBG("Failed to unpack PKCS#1 v1.5 envelope");
-            return CKR_FUNCTION_FAILED;
-        }
-        const ASN1_OCTET_STRING *digest;
-        const X509_ALGOR *algor;
-        X509_SIG_get0(sig, &algor, &digest);
-        data = digest->data;
-        len = digest->length;
-        hashnid = OBJ_obj2nid(algor->algorithm);
-    }
     if (hashnid == NID_undef) {
-        DBG("No hash algorithm for mechanism %lu - guessing", obj->mechanism);
-        hashnid = estimate_hash_nid(len);
+        DBG("No hash algorithm for mechanism %lu - guessing", sig->mechanism);
+        hashnid = estimate_hash_nid(sig->bm->length);
     }
-    DBG("Finalizing signature for object %lu", obj->object_id);
+    DBG("Finalizing signature for object %lu", sig->obj->object_id);
     FILE *fp =fopen("DATA", "w");
     if (!fp) {
         DBG("Cannot open DATA file for writing: %s", strerror(errno));
-        if (sig)
-            X509_SIG_free(sig);
         return CKR_FUNCTION_FAILED;
     }
-    fwrite(data, 1, len, fp);
+    fwrite(sig->bm->data, 1, sig->bm->length, fp);
     fclose(fp);
-    if (sig)
-        X509_SIG_free(sig);
 
     char cmd[1024];
     snprintf(cmd, sizeof cmd, "curl -v -k --cert-type P12 --cert '%s:%s'"
@@ -176,7 +197,7 @@ ck_rv_t key_sign_final(struct object *obj, struct slot *slot,
         slot->auth_cert, slot->auth_pass,
         slot->worker,
         OBJ_nid2sn(hashnid),
-        mechanism_to_signserver_algo(obj->mechanism),
+        mechanism_to_signserver_algo(sig->mechanism),
         slot->url);
 
     DBG("Executing command: '%s'", cmd);

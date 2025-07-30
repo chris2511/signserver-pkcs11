@@ -11,7 +11,6 @@
 #define CRYPTOKI_GNU
 #include "pkcs11.h"
 #include "attr.h"
-#include <openssl/bio.h>
 
 #define OBJ_ID_OFFSET 0x25ad7 
 
@@ -27,9 +26,6 @@ struct object {
     enum object_type type;
     int keytype; // EVP_PKEY_base_id
     struct attr attributes;
-    unsigned long mechanism;
-    BIO *bio;
-    BUF_MEM *bm;
 };
 
 struct slot;

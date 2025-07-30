@@ -10,6 +10,7 @@
 
 #include "iniparser/iniparser.h"
 #include "signserver-pkcs11.h"
+#include "signature.h"
 #include "slot.h"
 
 struct session {
@@ -20,6 +21,7 @@ struct session {
     /* FindObjects*() data */
     unsigned long find_pos;
     unsigned long n_found;
+    struct signature_op signature;
     struct object *found_objects[OBJECT_TYPE_MAX];
 };
 

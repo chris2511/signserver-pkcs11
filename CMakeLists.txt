@@ -20,7 +20,7 @@ add_library(signserver-pkcs11 MODULE
     slot.c slot.h
     attr.c attr.h
     object.c object.h
-    key.c key.h
+    signature.c signature.h
     session.c session.h
     storage.c storage.h
 )

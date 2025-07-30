@@ -6,7 +6,7 @@
  */
 
 #include "object.h"
-#include "key.h"
+#include "signature.h"
 #include "attr.h"
 #include "slot.h"
 
@@ -21,14 +21,6 @@
 
 void object_free(struct object *obj)
 {
-    if (obj->bio) {
-        BIO_free_all(obj->bio);
-        obj->bio = NULL;
-    }
-    if (obj->bm) {
-        BUF_MEM_free(obj->bm);
-        obj->bm = NULL;
-    }
     attr_free(&obj->attributes);
 }
 
