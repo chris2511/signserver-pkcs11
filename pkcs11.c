@@ -477,7 +477,7 @@ ck_rv_t C_Unsupported(void)
 ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
 {
 #pragma GCC diagnostic ignored "-Wcast-function-type"
-    static struct ck_function_list pkcs11_function_list = {
+    static struct ck_function_list_3_0 pkcs11_function_list = {
 
       .version = ckinfo.cryptoki_version,
       C_SUPPORTED(C_Initialize),
@@ -544,10 +544,34 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
     C_UNSUPPORTED(C_DeriveKey),
     C_UNSUPPORTED(C_SeedRandom),
     C_UNSUPPORTED(C_GenerateRandom),
+    /* PKCS #11 3.0 functions */
+    C_UNSUPPORTED(C_GetInterfaceList),
+    C_UNSUPPORTED(C_GetInterface),
+    C_UNSUPPORTED(C_LoginUser),
+    C_UNSUPPORTED(C_SessionCancel),
+    C_UNSUPPORTED(C_MessageEncryptInit),
+    C_UNSUPPORTED(C_EncryptMessage),
+    C_UNSUPPORTED(C_EncryptMessageBegin),
+    C_UNSUPPORTED(C_EncryptMessageNext),
+    C_UNSUPPORTED(C_MessageEncryptFinal),
+    C_UNSUPPORTED(C_MessageDecryptInit),
+    C_UNSUPPORTED(C_DecryptMessage),
+    C_UNSUPPORTED(C_DecryptMessageBegin),
+    C_UNSUPPORTED(C_DecryptMessageNext),
+    C_UNSUPPORTED(C_MessageDecryptFinal),
+    C_UNSUPPORTED(C_MessageSignInit),
+    C_UNSUPPORTED(C_SignMessage),
+    C_UNSUPPORTED(C_SignMessageBegin),
+    C_UNSUPPORTED(C_SignMessageNext),
+    C_UNSUPPORTED(C_MessageSignFinal),
+    C_UNSUPPORTED(C_MessageVerifyInit),
+    C_UNSUPPORTED(C_VerifyMessage),
+    C_UNSUPPORTED(C_VerifyMessageBegin),
+    C_UNSUPPORTED(C_VerifyMessageNext),
+    C_UNSUPPORTED(C_MessageVerifyFinal),
     };
-
 #pragma GCC diagnostic pop
 
-    *function_list = &pkcs11_function_list;
+    *function_list = (struct ck_function_list*)&pkcs11_function_list;
     return CKR_OK;
 }
