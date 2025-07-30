@@ -32,4 +32,5 @@ static inline struct object *session_curr_obj(struct session *sess)
 
 struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id);
 void session_free(struct session *sess);
+
 #endif

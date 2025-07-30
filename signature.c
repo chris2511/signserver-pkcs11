@@ -51,29 +51,6 @@ static int estimate_hash_nid(int hashlen)
     return NID_undef;
 }
 
-static const char* mechanism_to_signserver_algo(ck_mechanism_type_t mech)
-{
-    switch (mech) {
-        case CKM_RSA_PKCS:
-        case CKM_SHA1_RSA_PKCS:
-        case CKM_SHA256_RSA_PKCS:
-        case CKM_SHA384_RSA_PKCS:
-        case CKM_SHA512_RSA_PKCS:
-            return "NONEwithRSA";
-        case CKM_RSA_PKCS_PSS:
-        case CKM_SHA1_RSA_PKCS_PSS:
-        case CKM_SHA256_RSA_PKCS_PSS:
-        case CKM_SHA384_RSA_PKCS_PSS:
-        case CKM_SHA512_RSA_PKCS_PSS:
-            return "NONEwithRSAandMGF1";
-        case CKM_ECDSA:
-        case CKM_ECDSA_SHA1:
-            return "NONEwithECDSA";
-        default:
-            return "";
-    }
-}
-
 static int mechanism_is_pkcsv15(ck_mechanism_type_t mech)
 {
     switch (mech) {
@@ -155,7 +132,7 @@ static int unpack_pkcs15_signature(struct signature_op *sig)
         X509_SIG_free(xsig);
         return NID_undef;
     }
-    // Write the digest to the BIO
+    // Write the digest to the which contained the X509_SIG
     memcpy(sig->bm->data, digest->data, digest->length);
     sig->bm->length = digest->length;
 
@@ -177,46 +154,7 @@ ck_rv_t signature_op_final(struct signature_op *sig, struct slot *slot,
         DBG("No hash algorithm for mechanism %lu - guessing", sig->mechanism);
         hashnid = estimate_hash_nid(sig->bm->length);
     }
-    DBG("Finalizing signature for object %lu", sig->obj->object_id);
-    FILE *fp =fopen("DATA", "w");
-    if (!fp) {
-        DBG("Cannot open DATA file for writing: %s", strerror(errno));
-        return CKR_FUNCTION_FAILED;
-    }
-    fwrite(sig->bm->data, 1, sig->bm->length, fp);
-    fclose(fp);
-
-    char cmd[1024];
-    snprintf(cmd, sizeof cmd, "curl -v -k --cert-type P12 --cert '%s:%s'"
-        " -F workerName='%s'"
-        " -F data=@DATA"
-        " -F REQUEST_METADATA.CLIENTSIDE_HASHDIGESTALGORITHM=%s"
-        " -F REQUEST_METADATA.USE_CLIENTSUPPLIED_HASH=true"
-        " -F REQUEST_METADATA.SIGNATUREALGORITHM=%s"
-        " '%s/signserver/process'",
-        slot->auth_cert, slot->auth_pass,
-        slot->worker,
-        OBJ_nid2sn(hashnid),
-        mechanism_to_signserver_algo(sig->mechanism),
-        slot->url);
-
-    DBG("Executing command: '%s'", cmd);
-
-    fp = popen(cmd, "r");
-    if (!fp) {
-        DBG("Cannot execute command '%s': %s", cmd, strerror(errno));
-        return CKR_FUNCTION_FAILED;
-    }
-    char buf[1024];
-    size_t readlen = fread(buf, 1, sizeof buf, fp);
-    pclose(fp);
-    if (readlen == 0) {
-        DBG("No data read from command '%s'", cmd);
-        return CKR_FUNCTION_FAILED;
-    }
-    memcpy(signature, buf, readlen);
-    *signature_len = readlen;
-    return CKR_OK;
+    return plainsign(sig, slot, hashnid, signature, signature_len);
 }
 
 const ck_mechanism_type_t rsa_mechs[] = {

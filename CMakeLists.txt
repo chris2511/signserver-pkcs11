@@ -6,6 +6,7 @@ project(signserver-pkcs11
     LANGUAGES C
 )
 
+find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_library(INIPARSER NAMES iniparser)
 find_path(INIPARSER_INCLUDE_DIR NAMES iniparser.h PATH_SUFFIXES iniparser)
@@ -16,7 +17,8 @@ add_compile_options(-Wall -Wextra -Wpedantic -Werror -fvisibility=hidden)
 add_compile_options(-fmacro-prefix-map=${PROJECT_SOURCE_DIR}=.)
 
 add_library(signserver-pkcs11 MODULE
-    pkcs11.c signserver-pkcs11.h
+    pkcs11.c signserver-pkcs11.h pkcs11.h
+    plainsign.c
     slot.c slot.h
     attr.c attr.h
     object.c object.h
@@ -25,4 +27,4 @@ add_library(signserver-pkcs11 MODULE
     storage.c storage.h
 )
 
-target_link_libraries(signserver-pkcs11 iniparser OpenSSL::Crypto)
+target_link_libraries(signserver-pkcs11 iniparser OpenSSL::Crypto CURL::libcurl)

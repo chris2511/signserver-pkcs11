@@ -33,4 +33,7 @@ ck_rv_t key_get_mechanism(struct object *obj,
         ck_mechanism_type_t *mechanism_list, unsigned long *count);
 ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key);
 
+ck_rv_t plainsign(struct signature_op *sig, struct slot *slot, int hashnid,
+    unsigned char *signature, unsigned long *signature_len);
+
 #endif
