@@ -16,7 +16,7 @@
 #include <openssl/bio.h>
 
 struct signature_op {
-    struct object *obj;
+    const struct object *obj;
     unsigned long mechanism;
     BIO *bio;
     BUF_MEM *bm;
@@ -25,7 +25,7 @@ struct signature_op {
 ck_rv_t signature_op_init(struct signature_op *sig);
 ck_rv_t signature_op_update(struct signature_op *sig,
         unsigned char *part, unsigned long part_len);
-ck_rv_t signature_op_final(struct signature_op *sig, struct slot *slot,
+ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
         unsigned char *signature, unsigned long *signature_len);
 void signature_op_free(struct signature_op *op);
 
@@ -33,7 +33,7 @@ ck_rv_t key_get_mechanism(struct object *obj,
         ck_mechanism_type_t *mechanism_list, unsigned long *count);
 ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key);
 
-ck_rv_t plainsign(struct signature_op *sig, struct slot *slot, int hashnid,
+ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid,
     unsigned char *signature, unsigned long *signature_len);
 
 #endif

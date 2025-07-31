@@ -14,24 +14,24 @@
 #include "slot.h"
 
 struct session {
-    struct slot *slot;
+    const struct slot *slot;
     /* Operation (find, sign ..) in progress */
     unsigned long curr_op;
-    struct object *curr_obj;
+    const struct object *curr_obj;
     /* FindObjects*() data */
     unsigned long find_pos;
     unsigned long n_found;
     struct storage *pin;
     struct signature_op signature;
-    struct object *found_objects[OBJECT_TYPE_MAX];
+    const struct object *found_objects[OBJECT_TYPE_MAX];
 };
 
-static inline struct object *session_curr_obj(struct session *sess)
+static inline const struct object *session_curr_obj(struct session *sess)
 {
     return sess->curr_obj;
 }
 
-struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id);
+const struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id);
 void session_free(struct session *sess);
 
 #endif

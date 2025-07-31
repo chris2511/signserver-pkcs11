@@ -32,7 +32,7 @@ struct slot;
 
 ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert);
 void object_free(struct object *obj);
-int object_match_attributes(struct object *obj, struct ck_attribute *templ, unsigned long n);
+int object_match_attributes(const struct object *obj, struct ck_attribute *templ, unsigned long n);
 const char *object_type_to_desc(enum object_type type);
 
 #endif

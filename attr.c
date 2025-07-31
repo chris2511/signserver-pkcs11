@@ -63,7 +63,7 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
  * 1 if all matched, 
  * 2 if some attributes are unknown
  */
-int attr_match_template(struct attr *attr,
+int attr_match_template(const struct attr *attr,
         struct ck_attribute *templ, unsigned long count)
 {
     int unknown = 0;
@@ -90,7 +90,7 @@ int attr_match_template(struct attr *attr,
     return unknown ? 2 : 1;
 }
 
-int attr_fill_template(struct attr *attr,
+int attr_fill_template(const struct attr *attr,
         struct ck_attribute *templ, unsigned long count)
 {
     unsigned long filled = 0;

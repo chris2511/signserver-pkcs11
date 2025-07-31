@@ -142,7 +142,7 @@ static int unpack_pkcs15_signature(struct signature_op *sig)
     return hashnid;
 }
 
-ck_rv_t signature_op_final(struct signature_op *sig, struct slot *slot,
+ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
         unsigned char *signature, unsigned long *signature_len)
 {
     BIO_flush(sig->bio);

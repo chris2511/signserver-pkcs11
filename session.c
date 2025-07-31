@@ -10,7 +10,7 @@
 #include "storage.h" 
 #include <string.h>
 
-struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id)
+const struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id)
 {
     for (int i = 0; i < OBJECT_TYPE_MAX; i++) {
         if (sess->slot->objects[i].object_id == obj_id)

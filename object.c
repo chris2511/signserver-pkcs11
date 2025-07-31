@@ -61,7 +61,7 @@ static ck_rv_t object_init(struct object *obj)
     return CKR_OK;
 }
 
-int object_match_attributes(struct object *obj, struct ck_attribute *templ, unsigned long n)
+int object_match_attributes(const struct object *obj, struct ck_attribute *templ, unsigned long n)
 {
     DBG("Check Object %lu:%s", obj->object_id, object_type_to_desc(obj->type));
     if (!obj || !templ || n == 0)

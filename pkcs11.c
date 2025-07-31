@@ -260,13 +260,13 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
 
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
-    struct slot * slot = sess->slot;
+    const struct slot * slot = sess->slot;
     DBG("C_FindObjectsInit %lu %s %lu", session, slot->name, count);
 
     sess->n_found = 0;
     sess->find_pos = 0;
     for (int i=0; i < OBJECT_TYPE_MAX; i++) {
-        struct object *obj = slot->objects +i;
+        const struct object *obj = slot->objects +i;
         if (object_match_attributes(obj, templ, count)) {
             sess->found_objects[sess->n_found++] = obj;
         }
@@ -328,7 +328,7 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
 
     DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
 
-    struct object *obj = session_object_by_serial(sess, object);
+    const struct object *obj = session_object_by_serial(sess, object);
     if (!obj)
         return CKR_OBJECT_HANDLE_INVALID;
 
@@ -406,7 +406,7 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     if (sess->curr_op != 0 || sess->signature.obj)
         return CKR_OPERATION_ACTIVE;
 
-    struct object *obj = session_object_by_serial(sess, key_id);
+    const struct object *obj = session_object_by_serial(sess, key_id);
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
     sess->curr_op = 1;
@@ -425,7 +425,7 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
     CHECKARG(part);
     CHECKARG(part_len);
     struct session *sess = sessions +session;
-    struct object *obj = session_curr_obj(sess);
+    const struct object *obj = session_curr_obj(sess);
 
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
@@ -445,7 +445,7 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     struct session *sess = sessions +session;
 
     DBG("Session: %lu", session);
-    struct object *obj = session_curr_obj(sess);
+    const struct object *obj = session_curr_obj(sess);
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
     if (sess->curr_op != 1 || !sess->signature.obj)
