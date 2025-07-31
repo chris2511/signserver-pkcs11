@@ -60,24 +60,37 @@ static int slot_init(struct slot *slot)
     slot->auth_pass = slot_get_ini_entry(slot, "AuthPass", "");
     slot->worker = slot_get_ini_entry(slot, "WorkerName", "PlainSigner");
     slot->url = slot_get_ini_entry(slot, "url", NULL);
-    slot->label = slot_get_ini_entry(slot, "Label", NULL);
+    slot->cka_id = slot_get_ini_entry(slot, "cka_id", NULL);
 
     return CKR_OK;
 }
 
 static int slot_init_objects(struct slot *slot)
 {
+    ck_rv_t ret = CKR_OK;
+
     for (int i = 0; i < OBJECT_TYPE_MAX; i++) {
-        ck_rv_t ret = object_new(slot->objects + i,
+        ret = object_new(slot->objects + i,
             (enum object_type)i, slot->certificate);
+        struct attr *attr = &slot->objects[i].attributes;
         if (ret != CKR_OK) {
             DBG("Failed to create object %d for slot '%s': %lu", i, slot->name, ret);
-            return ret;
+            break;
         }
-        ATTR_ADD(&slot->objects[i].attributes, CKA_LABEL, slot->label, strlen(slot->label), 0);
-        ATTR_ADD_ULONG(&slot->objects[i].attributes, CKA_ID, 0x4711);
+        ATTR_ADD(attr, CKA_LABEL, slot->name, strlen(slot->name), 0);
+        if (slot->cka_id) {
+            BIGNUM *id_hex = NULL;
+            if ((size_t)BN_hex2bn(&id_hex, slot->cka_id) != strlen(slot->cka_id)) {
+                DBG("Failed to convert CKA_ID '%s' to BIGNUM", slot->cka_id);
+                BN_free(id_hex);
+                return CKR_ARGUMENTS_BAD;
+            }
+            struct storage *id_store = storage_BN(id_hex); // free()s id_hex
+            if (id_store)
+                ATTR_ADD_STORAGE(attr, CKA_ID, id_store); // free()s id_store
+        }
     }
-    return CKR_OK;
+    return ret;
 }
 
 ck_rv_t slot_scan(dictionary *ini, const char *filename,

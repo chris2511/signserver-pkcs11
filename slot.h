@@ -23,7 +23,7 @@ struct slot {
     const char *auth_pass;
     const char *worker;
     const char *url;
-    const char *label;
+    const char *cka_id;
     struct object objects[OBJECT_TYPE_MAX];
     
 };

@@ -41,7 +41,7 @@ const char *object_type_to_desc(enum object_type type)
 static ck_rv_t object_collect_attributes(struct object *obj)
 {
     struct attr *attr = &obj->attributes;
-    //ATTR_ADD_ULONG(attr, CKA_ID, 0);
+
     ATTR_ADD_BOOL(attr, CKA_ALWAYS_AUTHENTICATE, 0);
     ATTR_ADD_BOOL(attr, CKA_TOKEN, 1);
     return CKR_OK;
@@ -64,8 +64,6 @@ static ck_rv_t object_init(struct object *obj)
 int object_match_attributes(const struct object *obj, struct ck_attribute *templ, unsigned long n)
 {
     DBG("Check Object %lu:%s", obj->object_id, object_type_to_desc(obj->type));
-    if (!obj || !templ || n == 0)
-        return 0;
     int ret = attr_match_template(&obj->attributes, templ, n);
     if (ret == 2) {
         DBG("Object %lu has unknown attributes", obj->object_id);
