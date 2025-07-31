@@ -6,6 +6,8 @@ project(signserver-pkcs11
     LANGUAGES C
 )
 
+include(GNUInstallDirs)
+
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_library(INIPARSER NAMES iniparser)
@@ -28,3 +30,4 @@ add_library(signserver-pkcs11 MODULE
 )
 
 target_link_libraries(signserver-pkcs11 iniparser OpenSSL::Crypto CURL::libcurl)
+install(TARGETS signserver-pkcs11 DESTINATION ${CMAKE_INSTALL_LIBDIR})

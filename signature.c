@@ -174,6 +174,9 @@ const unsigned long n_rsa_mechs = sizeof rsa_mechs / sizeof rsa_mechs[0];
 const ck_mechanism_type_t ec_mechs[] = {
         CKM_ECDSA,
         CKM_ECDSA_SHA1,
+        CKM_ECDSA_SHA256,
+        CKM_ECDSA_SHA384,
+        CKM_ECDSA_SHA512,
 };
 const unsigned long n_ec_mechs = sizeof ec_mechs / sizeof ec_mechs[0];
 
