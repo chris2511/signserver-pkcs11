@@ -96,7 +96,9 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     snprintf(url, sizeof url, "%s/signserver/process", slot->url);
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+    // Enable verbose output for debugging
+    if (dbg > 0)
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
