@@ -1,16 +1,6 @@
 #include <curl/curl.h>
 #include <curl/easy.h>
 
-// Debug-Callback für libcurl, gibt gesendete Daten (MIME-Body) auf stderr aus
-static int curl_debug_cb(CURL *handle, curl_infotype type, char *data, size_t size, void *userptr) {
-    (void)handle; (void)userptr;
-    if (type == CURLINFO_DATA_OUT) {
-        fprintf(stderr, "--- curl DATA_OUT (%zu bytes) ---\n", size);
-        fwrite(data, 1, size, stderr);
-        fprintf(stderr, "\n--- END DATA_OUT ---\n");
-    }
-    return 0;
-}
 /* vi: set sw=4 ts=4 expandtab: */
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
@@ -80,10 +70,12 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_mime_name(part, "workerName");
     curl_mime_data(part, slot->worker, CURL_ZERO_TERMINATED);
 
-    // data (direkt aus Speicher)
+    // data (direkt aus Speicher, explizit als application/octet-stream)
     part = curl_mime_addpart(mime);
     curl_mime_name(part, "data");
     curl_mime_data(part, (const char*)sig->bm->data, sig->bm->length);
+    curl_mime_type(part, "application/octet-stream");
+    curl_mime_filename(part, "file");
 
     // REQUEST_METADATA.CLIENTSIDE_HASHDIGESTALGORITHM
     part = curl_mime_addpart(mime);
@@ -105,7 +97,6 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
     curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, curl_debug_cb);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
