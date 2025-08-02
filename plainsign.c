@@ -119,9 +119,22 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
 
     res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     curl_mime_free(mime);
     curl_easy_cleanup(curl);
 
+    // Dump bio to stderr if http response != 200
+    if (dbg > 0 && http_code != 200) {
+        char *data;
+        long len = BIO_get_mem_data(bio, &data);
+        fprintf(stderr, "HTTP response code: %ld\n", http_code);
+        if (len > 0) {
+            fprintf(stderr, "Response from server:\n%.*s\n", (int)len, data);
+        } else {
+            fprintf(stderr, "No response data received.\n");
+        }
+    }
     if (res != CURLE_OK) {
         DBG("curl_easy_perform() failed: %s", curl_easy_strerror(res));
         BIO_free(bio);
