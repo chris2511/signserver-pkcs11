@@ -210,6 +210,50 @@ ck_rv_t key_get_mechanism(struct object *obj,
     return CKR_OK;
 }
 
+static ck_rv_t get_der_groupname(const EVP_PKEY *key,
+    unsigned char *der, size_t *derlen)
+{
+    char grpname[256];
+    if (EVP_PKEY_get_group_name(key, grpname, sizeof grpname, NULL) <= 0)
+        return CKR_GENERAL_ERROR;
+    DBG("EC group name: %s", grpname);
+    EC_GROUP *group = EC_GROUP_new_by_curve_name(OBJ_txt2nid(grpname));
+    if (!group)
+        return CKR_HOST_MEMORY;
+
+    if ((size_t)i2d_ECPKParameters(group, NULL) < *derlen)
+        *derlen = i2d_ECPKParameters(group, &der);
+    else
+        *derlen= 0;
+
+    EC_GROUP_free(group);
+    return *derlen > 0 ? CKR_OK : CKR_GENERAL_ERROR;
+}
+
+ck_rv_t get_der_ec_point(const EVP_PKEY *key, unsigned char *der, size_t *derlen)
+{
+    size_t len;
+    unsigned char buf[256];
+    EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_PUB_KEY,
+                                    buf, sizeof buf, &len);
+    DBG("EC generator length: %zu", len);
+
+    if (len > sizeof buf)
+        return CKR_HOST_MEMORY;
+
+    ASN1_OCTET_STRING *point = ASN1_OCTET_STRING_new();
+    if (!point)
+        return CKR_HOST_MEMORY;
+    ASN1_STRING_set(point, buf, len);
+
+    if ((size_t)i2d_ASN1_OCTET_STRING(point, NULL) < *derlen)
+        *derlen = i2d_ASN1_OCTET_STRING(point, &der);
+    else
+        *derlen = 0;
+    ASN1_OCTET_STRING_free(point);
+    return *derlen > 0 ? CKR_OK : CKR_GENERAL_ERROR;
+}
+
 ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
 {
     struct attr *attr = &obj->attributes;
@@ -223,43 +267,23 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
         ATTR_ADD_STORAGE(attr, CKA_MODULUS, store);
         store = storage_PKEY(key, OSSL_PKEY_PARAM_RSA_E);
         ATTR_ADD_STORAGE(attr, CKA_PUBLIC_EXPONENT, store);
+        return CKR_OK;
     }
     if (EVP_PKEY_get_base_id(key) == EVP_PKEY_EC) {
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_EC);
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, ec_mechs, sizeof ec_mechs, 0);
 
-#if 0
-        const OSSL_PARAM *pa = EVP_PKEY_gettable_params(key);
-    while (pa && pa->key) {
-        DBG("Param: %s Type: %d", pa->key, pa->data_type);
-       pa++;
-    }
-#endif
-        unsigned char buf[1024], *ptr = buf;
-        size_t len = sizeof buf;
-        char grpname[256];
-        if (EVP_PKEY_get_group_name(key, grpname, sizeof grpname, NULL) > 0) {
-            DBG("EC group name: %s", grpname);
-            int nid = OBJ_txt2nid(grpname);
-            EC_GROUP *group = EC_GROUP_new_by_curve_name(nid);
-            if (group) {
-                len = i2d_ECPKParameters(group, &ptr);
-                if (len > 0) {
-                    ATTR_ADD(attr, CKA_EC_PARAMS, buf, len, 1);
-                } else {
-                    DBG("Failed to convert EC parameters to DER");
-                }
-                EC_GROUP_free(group);
-            }
+        unsigned char der[256];
+        size_t len = sizeof der;
+        ck_rv_t rv = get_der_groupname(key, der, &len);
+        if (rv == CKR_OK) {
+            ATTR_ADD(attr, CKA_EC_PARAMS, der, len, 1);
+            len = sizeof der;
+            rv = get_der_ec_point(key, der, &len);
         }
-        EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_PUB_KEY,
-                                        buf, sizeof buf, &len);
-        DBG("EC generator length: %zu", len);
-        if (len == 0 || len > sizeof buf) {
-            DBG("Cannot get EC generator size: %zu", len);
-            return CKR_HOST_MEMORY;
-        }
-        ATTR_ADD(attr, CKA_EC_POINT, buf, len, 1);
+        if (rv == CKR_OK)
+            ATTR_ADD(attr, CKA_EC_POINT, der, len, 1);
+        return rv;
     }
-    return CKR_OK;
+    return CKR_GENERAL_ERROR;
 }
