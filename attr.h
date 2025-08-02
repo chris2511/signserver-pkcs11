@@ -48,7 +48,7 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
                  void *value, size_t value_len, int dup);
 int attr_match_template(const struct attr *attr,
         struct ck_attribute *templ, unsigned long count);
-int attr_fill_template(const struct attr *attr,
+ck_rv_t attr_fill_template(const struct attr *attr,
         struct ck_attribute *templ, unsigned long count);
 
 #endif

@@ -90,26 +90,25 @@ int attr_match_template(const struct attr *attr,
     return unknown ? 2 : 1;
 }
 
-int attr_fill_template(const struct attr *attr,
+ck_rv_t attr_fill_template(const struct attr *attr,
         struct ck_attribute *templ, unsigned long count)
 {
-    unsigned long filled = 0;
+    unsigned long found = 0, too_small = 0;
     for (unsigned long i = 0; i < count; i++) {
         DBG("Attribute 0x%lx %lu", templ[i].type, templ[i].value_len);
         unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
-        for (unsigned long j = 0; j < attr->count; j++) {
-//            DBG("Object Attribute[%lu] %lu %lu", j, attr->attributes[j].type,
-//                            attr->attributes[j].value_len);
-            if (attr->attributes[j].type != templ[i].type)
-                continue;
-            filled++;
-            if (!templ[i].value) {
-                new_len = attr->attributes[j].value_len;
+        const struct ck_attribute *obj_attr = attr_find(attr, tmpl_attr);
+        if (obj_attr) {
+            found++;
+            // Follows the spec: attr->value && attr->value_len < new_len
+            //     -> CK_UNAVAILABLE_INFORMATION & ret = CKR_BUFFER_TOO_SMALL
+            if (!tmpl_attr->value) {
+                new_len = obj_attr->value_len;
+            } else if (tmpl_attr->value_len < obj_attr->value_len) {
+                too_small++;
             } else {
-                if (templ[i].value_len >= attr->attributes[j].value_len) {
-                    new_len = attr->attributes[j].value_len;
-                    memcpy(templ[i].value, attr->attributes[j].value, new_len);
-                }
+                new_len = obj_attr->value_len;
+                memcpy(tmpl_attr->value, obj_attr->value, new_len);
             }
             break;
         }
@@ -119,6 +118,7 @@ int attr_fill_template(const struct attr *attr,
         }
         templ[i].value_len = new_len;
     }
-    DBG("Attributes Filled %lu out of %lu", filled, count);
-    return filled;
+    DBG("Attributes found/too_small %lu/%lu out of %lu", found, too_small, count);
+    return found < count ? CKR_ATTRIBUTE_TYPE_INVALID :
+                           too_small > 0 ? CKR_BUFFER_TOO_SMALL : CKR_OK;
 }

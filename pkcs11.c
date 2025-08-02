@@ -332,8 +332,7 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     if (!obj)
         return CKR_OBJECT_HANDLE_INVALID;
 
-    attr_fill_template(&obj->attributes, templ, count);
-    return CKR_OK;
+    return attr_fill_template(&obj->attributes, templ, count);
 }
 
 ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
