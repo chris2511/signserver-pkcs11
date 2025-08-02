@@ -125,7 +125,7 @@ ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert)
             break;
         case OBJECT_TYPE_CERTIFICATE:
             x509_collect_attributes(obj, cert);
-            break;
+            return CKR_OK;
         default:
             return CKR_GENERAL_ERROR;
     }
