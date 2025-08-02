@@ -16,7 +16,7 @@ const struct object *session_object_by_serial(struct session *sess, ck_object_ha
         if (sess->slot->objects[i].object_id == obj_id)
             return sess->slot->objects + i;
     }
-    DBG("Invalid object ID: %lu", obj_id);
+    ERR("Invalid object ID: %lu", obj_id);
     return NULL;
 }
 

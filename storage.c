@@ -6,6 +6,7 @@
  */
 
 #include "storage.h"
+#include "signserver-pkcs11.h"
 
 #include <string.h>
 #include <openssl/evp.h>
@@ -28,8 +29,10 @@ struct storage *storage_i2d(int(*i2d)(const void*, unsigned char **),
     unsigned char *p;
 
     int size = i2d(data, NULL);
-    if (size < 0)
+    if (size < 0) {
+        OSSL_ERR("i2d function failed");
         return NULL;
+    }
     s = malloc(size + sizeof *s);
     if (!s)
         return NULL;
@@ -55,5 +58,6 @@ struct storage *storage_PKEY(const EVP_PKEY *pkey, const char *param)
         struct storage *s = storage_BN(bn);
         return s;
     }
+    OSSL_ERR(param);
     return NULL;
 }

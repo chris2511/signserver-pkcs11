@@ -99,13 +99,12 @@ ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert)
     const EVP_PKEY *key = X509_get_pubkey(cert);
 
     if (!key) {
-        char errbuf[256];
-        ERR_error_string_n(ERR_get_error(), errbuf, sizeof errbuf);
-        DBG("Cannot get public key from certificate '%s'\n", errbuf);
+        OSSL_ERR("Cannot get public key from certificate");
         return CKR_HOST_MEMORY;
     }
     obj->keytype = EVP_PKEY_base_id(key);
 
+    DBG("Type: %s Keytype: %d", object_type_to_desc(type), obj->keytype);
     switch (type) {
         case OBJECT_TYPE_PUBLIC_KEY:
             key_collect_key_attributes(obj, key);

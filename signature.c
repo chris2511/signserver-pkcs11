@@ -35,7 +35,7 @@ static int mechanism_to_hashnid(ck_mechanism_type_t mech)
         case CKM_RSA_PKCS_PSS:
             return NID_undef;
         default:
-            DBG("Unsupported mechanism %lu", mech);
+            ERR("Unsupported mechanism %lu", mech);
             return NID_undef;
     }
 }
@@ -84,14 +84,14 @@ ck_rv_t signature_op_init(struct signature_op *sig)
     sig->bm = BUF_MEM_new();
 
     if (!sig->bio || !sig->bm) {
-        DBG("Failed to create BIO for mechanism %lu", sig->mechanism);
+        ERR("Failed to create BIO for mechanism %lu", sig->mechanism);
         return CKR_HOST_MEMORY;
     }
     BIO_set_mem_buf(sig->bio, sig->bm, BIO_NOCLOSE);
     if (nid != NID_undef) {
         BIO *digest = BIO_new(BIO_f_md());
         if (!digest) {
-            DBG("Failed to create BIO for digest %d", nid);
+            ERR("Failed to create BIO for digest %d", nid);
             return CKR_HOST_MEMORY;
         }
         BIO_set_md(digest, EVP_get_digestbynid(nid));
@@ -104,7 +104,7 @@ ck_rv_t signature_op_update(struct signature_op *sig,
         unsigned char *part, unsigned long part_len)
 {
     if (!sig || !sig->bio || !part || part_len == 0) {
-        DBG("Invalid arguments for key_sign_update");
+        ERR("Invalid arguments for key_sign_update");
         return CKR_ARGUMENTS_BAD;
     }
     return BIO_write(sig->bio, part, part_len) >= 0 ?
@@ -117,7 +117,7 @@ static int unpack_pkcs15_signature(struct signature_op *sig)
     const unsigned char *p = (unsigned char *)sig->bm->data;
     X509_SIG *xsig = d2i_X509_SIG(NULL, &p, sig->bm->length);
     if (!xsig) {
-        DBG("Failed to unpack PKCS#1 v1.5 envelope");
+        ERR("Failed to unpack PKCS#1 v1.5 envelope");
         return NID_undef;
     }
     BIO_free_all(sig->bio);
@@ -128,7 +128,7 @@ static int unpack_pkcs15_signature(struct signature_op *sig)
 
     //  sig->bm is large enough, check anyway
     if (sig->bm->length < (size_t)digest->length) {
-        DBG("Failed to grow BUF_MEM for PKCS#1 v1.5 envelope");
+        ERR("Failed to grow BUF_MEM for PKCS#1 v1.5 envelope");
         X509_SIG_free(xsig);
         return NID_undef;
     }
@@ -151,7 +151,7 @@ ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
         hashnid = unpack_pkcs15_signature(sig);
 
     if (hashnid == NID_undef) {
-        DBG("No hash algorithm for mechanism %lu - guessing", sig->mechanism);
+        INFO("No hash algorithm for mechanism %lu - guessing", sig->mechanism);
         hashnid = estimate_hash_nid(sig->bm->length);
     }
     return plainsign(sig, slot, hashnid, signature, signature_len);
@@ -196,11 +196,12 @@ ck_rv_t key_get_mechanism(struct object *obj,
             n_mechs = n_ec_mechs;
             break;
         default:
-            DBG("Unsupported key type %d", obj->keytype);
+            ERR("Unsupported key type %d", obj->keytype);
             return CKR_KEY_TYPE_INCONSISTENT;
     }
     if (mechanism_list) {
         if (*count < n_mechs) {
+            DBG("Buffer too small for %lu mechanisms %lu", n_mechs, *count);
             *count = n_mechs;
             return CKR_BUFFER_TOO_SMALL;
         }
@@ -214,12 +215,16 @@ static ck_rv_t get_der_groupname(const EVP_PKEY *key,
     unsigned char *der, size_t *derlen)
 {
     char grpname[256];
-    if (EVP_PKEY_get_group_name(key, grpname, sizeof grpname, NULL) <= 0)
+    if (EVP_PKEY_get_group_name(key, grpname, sizeof grpname, NULL) <= 0){
+        OSSL_ERR("Failed to get EC group name");
         return CKR_GENERAL_ERROR;
+    }
     DBG("EC group name: %s", grpname);
     EC_GROUP *group = EC_GROUP_new_by_curve_name(OBJ_txt2nid(grpname));
-    if (!group)
-        return CKR_HOST_MEMORY;
+    if (!group) {
+        OSSL_ERR("Failed to create EC_GROUP from name");
+        return CKR_GENERAL_ERROR;
+    }
 
     if ((size_t)i2d_ECPKParameters(group, NULL) < *derlen)
         *derlen = i2d_ECPKParameters(group, &der);

@@ -57,7 +57,7 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
 
     CURL *curl = curl_easy_init();
     if (!curl) {
-        DBG("curl_easy_init failed");
+        ERR("curl_easy_init failed");
         return CKR_FUNCTION_FAILED;
     }
 
@@ -97,7 +97,7 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
     // Enable verbose output for debugging
-    if (dbg > 0)
+    if (debug_level > 2)
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
@@ -110,7 +110,7 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
 
     BIO *bio = BIO_new(BIO_s_mem());
     if (!bio) {
-        DBG("BIO_new(BIO_s_mem()) failed");
+        OSSL_ERR("BIO_new(BIO_s_mem()) failed");
         curl_mime_free(mime);
         curl_easy_cleanup(curl);
         return CKR_FUNCTION_FAILED;
@@ -124,27 +124,27 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_mime_free(mime);
     curl_easy_cleanup(curl);
 
-    // Dump bio to stderr if http response != 200
-    if (dbg > 0 && http_code != 200) {
-        char *data;
-        long len = BIO_get_mem_data(bio, &data);
-        fprintf(stderr, "HTTP response code: %ld\n", http_code);
-        if (len > 0) {
-            fprintf(stderr, "Response from server:\n%.*s\n", (int)len, data);
-        } else {
-            fprintf(stderr, "No response data received.\n");
-        }
-    }
     if (res != CURLE_OK) {
         DBG("curl_easy_perform() failed: %s", curl_easy_strerror(res));
         BIO_free(bio);
         return CKR_FUNCTION_FAILED;
     }
+    INFO("HTTP response code of '%s': %ld\n", url, http_code);
+    // Dump bio to stderr if http response != 200
+    if ((debug_level > 0 && http_code != 200) || debug_level > 2) {
+        char *data;
+        long len = BIO_get_mem_data(bio, &data);
+        if (len > 0) {
+            DBG("Response from server:\n%.*s\n", (int)len, data);
+        } else {
+            ERR("No response data received.");
+        }
+    }
 
     BUF_MEM *bptr = NULL;
     BIO_get_mem_ptr(bio, &bptr);
     if (!bptr || bptr->length == 0) {
-        DBG("No data received from server");
+        ERR("No data received from server");
         BIO_free(bio);
         return CKR_FUNCTION_FAILED;
     }

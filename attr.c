@@ -40,7 +40,7 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
         if (!attr->attributes)
             return CKR_HOST_MEMORY;
     }
-//    DBG("Add Attribute[%lu] %lu %lu", attr->count, type, value_len);
+    DBG2("Add Attribute[%lu] %lu %lu", attr->count, type, value_len);
     struct ck_attribute *a = attr->attributes + attr->count;
     a->type = type;
     if (attr->count >= sizeof(attr->alloced_bitfield) * 8)
@@ -59,34 +59,46 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
     return CKR_OK;
 }
 
+static const struct ck_attribute *attr_find(const struct attr *attr,
+    const struct ck_attribute *templ)
+{
+    for (unsigned long i = 0; i < attr->count; i++) {
+        if (attr->attributes[i].type == templ->type) {
+            DBG2("Found my attribute[%lu/%lu] Type:0x%lx Len:%lu", i, attr->count,
+                 attr->attributes[i].type, attr->attributes[i].value_len);
+            return &attr->attributes[i];
+        }
+    }
+    DBG2("Attribute 0x%lx not found", templ->type);
+    return NULL;
+}
+
 /* Returns 0 if an attribute did not match,
- * 1 if all matched, 
+ * 1 if all matched,
  * 2 if some attributes are unknown
  */
 int attr_match_template(const struct attr *attr,
         struct ck_attribute *templ, unsigned long count)
 {
     int unknown = 0;
-    unsigned long i, j;
+    unsigned long i;
     for (i = 0; i < count; i++) {
-        struct ck_attribute *tmpl_attr = templ + i;
-        DBG("Check TMPL Attribute[%lu] Type:%lu Len:%lu", i, tmpl_attr->type, tmpl_attr->value_len);
-        for (j = 0; j < attr->count; j++) {
-            struct ck_attribute *obj_attr = attr->attributes + j;
-            if (tmpl_attr->type == obj_attr->type) {
-                DBG("Check Attribute[%lu:%lu] Type:%lu Len:%lu", i, j, tmpl_attr->type, tmpl_attr->value_len);
-                if (tmpl_attr->value_len != obj_attr->value_len)
-                    return 0;
-                if (memcmp(tmpl_attr->value, obj_attr->value, tmpl_attr->value_len) != 0)
-                    return 0;
-                DBG("Object found Type:%lu Len:%lu", tmpl_attr->type, tmpl_attr->value_len);
-                break;
+        const struct ck_attribute *tmpl_attr = templ + i;
+        DBG("Search Template attribute[%lu/%lu] Type:0x%lx Len:%lu", i, count, tmpl_attr->type, tmpl_attr->value_len);
+        const struct ck_attribute *obj_attr = attr_find(attr, tmpl_attr);
+        if (!obj_attr) {
+            unknown++;
+        } else {
+            if (tmpl_attr->value_len != obj_attr->value_len ||
+                memcmp(tmpl_attr->value, obj_attr->value, tmpl_attr->value_len) != 0)
+            {
+                DBG("Attribute %lu different to ours", i);
+                return 0;
             }
+            DBG2("Attribute %lu matches ours", i);
         }
-        if (j == attr->count)
-            unknown = 1;
     }
-    DBG("Attributes matched %lu out of %lu", i, count);
+    DBG("All our attributes matched %lu out of %lu", count - unknown, count);
     return unknown ? 2 : 1;
 }
 
@@ -95,7 +107,10 @@ ck_rv_t attr_fill_template(const struct attr *attr,
 {
     unsigned long found = 0, too_small = 0;
     for (unsigned long i = 0; i < count; i++) {
-        DBG("Attribute 0x%lx %lu", templ[i].type, templ[i].value_len);
+        struct ck_attribute *tmpl_attr = templ + i;
+
+        DBG("Search Template attribute[%lu/%lu] Type:0x%lx Len:%lu",
+            i, count, tmpl_attr->type, tmpl_attr->value_len);
         unsigned long new_len = CK_UNAVAILABLE_INFORMATION;
         const struct ck_attribute *obj_attr = attr_find(attr, tmpl_attr);
         if (obj_attr) {
@@ -110,13 +125,8 @@ ck_rv_t attr_fill_template(const struct attr *attr,
                 new_len = obj_attr->value_len;
                 memcpy(tmpl_attr->value, obj_attr->value, new_len);
             }
-            break;
         }
-        if (new_len == CK_UNAVAILABLE_INFORMATION) {
-            DBG("Attribute 0x%lx not found", templ[i].type);
-            continue;
-        }
-        templ[i].value_len = new_len;
+        tmpl_attr->value_len = new_len;
     }
     DBG("Attributes found/too_small %lu/%lu out of %lu", found, too_small, count);
     return found < count ? CKR_ATTRIBUTE_TYPE_INVALID :

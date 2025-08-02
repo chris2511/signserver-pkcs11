@@ -31,7 +31,7 @@
     if (slot_id >= MAX_SLOTS || slots[slot_id].section_idx == -1) \
         return CKR_SLOT_ID_INVALID;
 
-int dbg;
+int debug_level;
 static dictionary *ini;
 static struct session sessions[MAX_SESSIONS];
 static struct slot slots[MAX_SLOTS];
@@ -48,6 +48,8 @@ static const struct ck_info ckinfo = {
 
 int iniparser_err(const char *fmt, ...)
 {
+    if (debug_level < 1)
+        return 0; // Do not print errors if debug level is low
     va_list args;
     va_start(args, fmt);
     fprintf(stderr, COL_MAGENTA "[iniparser]: " COL_RESET);
@@ -59,9 +61,7 @@ int iniparser_err(const char *fmt, ...)
 ck_rv_t C_Initialize(void *init)
 {
     (void)init;
-    const char *debug = getenv("SIGNSERVER_PKCS11_DEBUG");
-    dbg = debug && *debug;
-    DBG("C_Initialize -------- START");
+    DBG("Start");
 
     if (ini)
         return CKR_CRYPTOKI_ALREADY_INITIALIZED;
@@ -76,23 +76,25 @@ ck_rv_t C_Initialize(void *init)
     const char *ini_file = getenv("SIGNSERVER_PKCS11_INI");
     if (!ini_file || !*ini_file)
         ini_file = "/etc/signserver/pkcs11.ini";
+    DBG("Loading INI file: '%s'", ini_file);
     ini = iniparser_load(ini_file);
     if (!ini) {
-        DBG("C_Initialize -------- Failed to load %s: %s", ini_file, strerror(errno));
+        ERR("Failed to load %s: %s", ini_file, strerror(errno));
         return CKR_FUNCTION_FAILED;
     }
     ck_rv_t r = slot_scan(ini, ini_file, slots, &n_slots);
     if (r != CKR_OK)
         return r;
-    DBG("C_Initialize -------- DONE(%lu) Slots: %lu", r, n_slots);
+    INFO("Found %lu slots in %s", n_slots, ini_file);
+    DBG("End Slots: %lu", n_slots);
     return CKR_OK;
 }
 
 ck_rv_t C_Finalize(void *reserved)
 {
+    DBG("Start")
     if (reserved)
         return CKR_ARGUMENTS_BAD;
-    DBG("C_Finalize");
     INITIALIZED;
 
     for (int i = 0; i < MAX_SLOTS; i++)
@@ -102,15 +104,17 @@ ck_rv_t C_Finalize(void *reserved)
     n_slots = 0;
     iniparser_freedict(ini);
     ini = NULL;
+    DBG("End")
     return CKR_OK;
 }
 
 ck_rv_t C_GetInfo(struct ck_info *info)
 {
-    DBG("C_GetInfo");
+    DBG("Start")
     INITIALIZED;
     CHECKARG(info);
     memcpy(info, &ckinfo, sizeof ckinfo);
+    DBG("End")
     return CKR_OK;
 }
 
@@ -118,10 +122,10 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
               unsigned long *count)
 {
     (void)token_present;
+    DBG("Start: Count %lu", slot_list && count ? *count : 0);
     INITIALIZED;
     CHECKARG(count);
 
-    DBG("C_GetSlotList %lu", slot_list ? *count : 0);
     if (slot_list) {
         if (*count < n_slots) {
             *count = n_slots;
@@ -134,33 +138,33 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
         }
     }
     *count = n_slots;
-    DBG("No. SLots %lu", *count);
+    DBG("End: No. SLots %lu", *count);
     return CKR_OK;
 }
 
 ck_rv_t C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
 {
+    DBG("Start: Slot ID %lu", slot_id);
     INITIALIZED;
     CHECKARG(info);
     CHECK_SLOT(slot_id);
-
-    DBG("Slot ID %lu", slot_id);
 
     memset(info, 0, sizeof *info);
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
     info->flags = CKF_TOKEN_PRESENT;
 
     copy_spaced_name(slots[slot_id].name, info->slot_description, sizeof(info->slot_description));
+    DBG("End");
     return CKR_OK;
 }
 
 ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
 {
+    DBG("Start: Slot ID %lu", slot_id);
     INITIALIZED;
     CHECKARG(info);
     CHECK_SLOT(slot_id);
 
-    DBG("Slot ID %lu", slot_id);
     memset(info, 0, sizeof *info);
 
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
@@ -181,6 +185,7 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     info->free_private_memory = CK_UNAVAILABLE_INFORMATION;
 
     copy_spaced_name(slots[slot_id].name, info->label, sizeof(info->label));
+    DBG("End");
     return CKR_OK;
 }
 
@@ -190,11 +195,11 @@ ck_rv_t C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
 {
     (void)application;
     (void)notify;
+    DBG("Start Slot ID %lu", slot_id);
     INITIALIZED;
     CHECK_SLOT(slot_id);
     CHECKARG(session);
     
-    DBG("Slot ID %lu", slot_id);
 
     if ((flags & CKF_SERIAL_SESSION) == 0)
         return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
@@ -208,42 +213,47 @@ ck_rv_t C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
             return CKR_OK;
         }
     }
+    DBG("End");
     return CKR_SESSION_COUNT;
 }
 
 ck_rv_t C_CloseSession(ck_session_handle_t session)
 {
+    DBG("Start Session %lu", session);
     INITIALIZED;
-    DBG("Session %lu", session);
     CHECK_SESSION(session);
     session_free(sessions +session);
+    DBG("End");
     return CKR_OK;
 }
 
 ck_rv_t C_CloseAllSessions(ck_slot_id_t slot_id)
 {
+    DBG("Start Slot ID %lu", slot_id);
     INITIALIZED;
     CHECK_SLOT(slot_id);
-    DBG("CloseAllSessions %lu", slot_id);
+
     for (int i = 0; i < MAX_SESSIONS; i++) {
         if (sessions[i].slot && sessions[i].slot->id == slot_id)
             session_free(sessions +i);
     }
+    DBG("End");
     return CKR_OK;
 }
 
 ck_rv_t C_GetSessionInfo(ck_session_handle_t session, struct ck_session_info *info)
 {
+    DBG("Start: Session %lu", session);
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(info);
-    DBG("Session %lu", session);
 
     memset(info, 0, sizeof *info);
     info->slot_id = sessions[session].slot->id;
     info->state = CKS_RO_PUBLIC_SESSION;
     info->flags = CKF_SERIAL_SESSION;
     info->device_error = 0;
+    DBG("End");
     return CKR_OK;
 }
 
@@ -251,6 +261,7 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
                           struct ck_attribute *templ,
                           unsigned long count)
 {
+    DBG("Start")
     INITIALIZED;
     CHECK_SESSION(session);
     if (count > 0)
@@ -271,9 +282,9 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
             sess->found_objects[sess->n_found++] = obj;
         }
     }
-    DBG("Objects found %lu", sess->n_found);
 
     sess->curr_op = 1;
+    DBG("End: Objects found %lu", sess->n_found);
     return CKR_OK;
 }
 
@@ -282,11 +293,11 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
     unsigned long max_object_count,
     unsigned long *object_count)
 {
+    DBG("Start: Session:%lu Max objects:%lu", session, max_object_count);
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(object_count);
     CHECKARG(object);
-    DBG("Session:%lu Max objects:%lu", session, max_object_count);
     struct session *sess = sessions +session;
 
     if (sess->curr_op != 1)
@@ -299,14 +310,15 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
         object[i] = (ck_object_handle_t)sess->found_objects[sess->find_pos++]->object_id;
     }
     *object_count = max_object_count;
+    DBG("End");
     return CKR_OK;
 }
 
 ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
 {
+    DBG("Start: Session %lu", session);
     INITIALIZED;
     CHECK_SESSION(session);
-    DBG("Session %lu", session);
     struct session *sess = sessions +session;
 
     if (sess->curr_op != 1)
@@ -314,34 +326,37 @@ ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
     sess->n_found = 0;
     sess->curr_op = 0;
 
-    DBG("Session exit %lu", session);
+    DBG("End: Session %lu", session);
     return CKR_OK;
 }
 
 ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     ck_object_handle_t object, struct ck_attribute *templ, unsigned long count)
 {
+    DBG("Start: Session: %lu Object: %lu Max attributes: %lu",
+        session, object, count);
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(templ);
     struct session *sess = sessions +session;
 
-    DBG("Session: %lu Object: %lu Max attributes: %lu", session, object, count);
 
     const struct object *obj = session_object_by_serial(sess, object);
     if (!obj)
         return CKR_OBJECT_HANDLE_INVALID;
 
+    DBG("End")
     return attr_fill_template(&obj->attributes, templ, count);
 }
 
 ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
 		       unsigned char *pin, unsigned long pin_len)
 {
+    DBG("Start: Session: %lu User type: %lu Pin len: %lu",
+        session, user_type, pin_len);
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(pin);
-    DBG("Session: %lu User type: %lu Pin len: %lu", session, user_type, pin_len);
     struct session *sess = sessions +session;
 
     if (sess->curr_op != 0)
@@ -356,9 +371,9 @@ ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
 
 ck_rv_t C_Logout(ck_session_handle_t session)
 {
+    DBG("Start: Session: %lu", session);
     INITIALIZED;
     CHECK_SESSION(session);
-    DBG("Session: %lu", session);
     struct session *sess = sessions +session;
 
     if (sess->curr_op != 0)
@@ -368,39 +383,42 @@ ck_rv_t C_Logout(ck_session_handle_t session)
 
     storage_free(sess->pin);
     sess->pin = NULL;
+    DBG("End")
     return CKR_OK;
 }
 
 ck_rv_t C_GetMechanismList(ck_slot_id_t slot_id,
         ck_mechanism_type_t *mechanism_list, unsigned long *count)
 {
+    DBG("Start")
     INITIALIZED;
     CHECK_SLOT(slot_id);
     CHECKARG(count);
 
-    DBG("Slot ID %lu max mechanisms: %ld", slot_id, *count);
+    DBG("End: Slot ID %lu max mechanisms: %ld", slot_id, *count);
     return key_get_mechanism(slots[slot_id].objects, mechanism_list, count);
 }
 
 ck_rv_t C_GetMechanismInfo(ck_slot_id_t slot_id,
         ck_mechanism_type_t type, struct ck_mechanism_info *info)
 {
+    DBG("Start: Slot ID %lu Mechanism: %lu", slot_id, type);
     INITIALIZED;
     CHECKARG(info);
-    DBG("Slot ID %lu Mechanism: %lu", slot_id, type);
     memset(info, 0, sizeof *info);
     info->flags = CKF_HW | CKF_ENCRYPT | CKF_DECRYPT | CKF_SIGN | CKF_VERIFY;
+    DBG("End");
     return CKR_OK;
 }
 
 ck_rv_t C_SignInit(ck_session_handle_t session,
         struct ck_mechanism *mechanism, ck_object_handle_t key_id)
 {
+    DBG("Start: Session: %lu Key: %lu", session, key_id);
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(mechanism);
     struct session *sess = sessions +session;
-    DBG("Session: %lu Key: %lu", session, key_id);
 
     if (sess->curr_op != 0 || sess->signature.obj)
         return CKR_OPERATION_ACTIVE;
@@ -413,12 +431,14 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     sess->signature.obj = obj;
     sess->signature.mechanism = mechanism->mechanism;
 
+    DBG("End")
     return signature_op_init(&sess->signature);
 }
 
 ck_rv_t C_SignUpdate(ck_session_handle_t session,
         unsigned char *part, unsigned long part_len)
 {
+    DBG("Start")
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(part);
@@ -430,20 +450,20 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
         return CKR_OBJECT_HANDLE_INVALID;
     if (sess->curr_op != 1 || !sess->signature.obj)
         return CKR_OPERATION_NOT_INITIALIZED;
-    DBG("Session: %lu Part len: %lu", session, part_len);
+    DBG("End: Session: %lu Part len: %lu", session, part_len);
     return signature_op_update(&sess->signature, part, part_len);
 }
 
 ck_rv_t C_SignFinal(ck_session_handle_t session,
         unsigned char *signature, unsigned long *signature_len)
 {
+    DBG("Start: Session: %lu", session);
     INITIALIZED;
     CHECK_SESSION(session);
     CHECKARG(signature);
     CHECKARG(signature_len);
     struct session *sess = sessions +session;
 
-    DBG("Session: %lu", session);
     const struct object *obj = session_curr_obj(sess);
     if (!obj || obj->type != OBJECT_TYPE_PRIVATE_KEY)
         return CKR_OBJECT_HANDLE_INVALID;
@@ -452,6 +472,7 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     int ret = signature_op_final(&sess->signature, sess->slot, signature, signature_len);
     sess->curr_op = 0;
     signature_op_free(&sess->signature);
+    DBG("End")
     return ret;
 }
 
@@ -459,9 +480,11 @@ ck_rv_t C_Sign(ck_session_handle_t session,
         unsigned char *data, unsigned long data_len,
         unsigned char *signature, unsigned long *signature_len)
 {
+    DBG("Start")
     ck_rv_t r = C_SignUpdate(session, data, data_len);
     if (r == CKR_OK)
         r = C_SignFinal(session, signature, signature_len);
+    DBG("End")
     return r;
 }
 
@@ -475,6 +498,14 @@ ck_rv_t C_Unsupported(void)
 
 ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
 {
+    const char *debug = getenv("SIGNSERVER_PKCS11_DEBUG");
+    int lvl = debug ? atoi(debug) : 0;
+    if (lvl > 0) {
+        debug_level = 2;
+        INFO("Start: Debug level %d", lvl);
+    }
+    debug_level = lvl;
+
 #pragma GCC diagnostic ignored "-Wcast-function-type"
     static struct ck_function_list_3_0 pkcs11_function_list = {
 

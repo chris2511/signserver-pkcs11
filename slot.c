@@ -39,21 +39,19 @@ static int slot_init(struct slot *slot)
     DBG("Scanning section %d: '%s'", slot->section_idx, slot->name);
     const char *certfile = slot_get_ini_entry(slot, "Certificate", NULL);
     if (!certfile) {
-        DBG("No certificate file specified for slot '%s'", slot->name);
+        ERR("No certificate file specified for slot '%s'", slot->name);
         return CKR_FUNCTION_FAILED;
     }
     DBG("Certificate file for slot '%s': '%s'", slot->name, certfile);
     FILE *fp = fopen(certfile, "r");
     if (!fp) {
-        DBG("Cannot open certificate file '%s': %s", certfile, strerror(errno));
+        ERR("Cannot open certificate file '%s': %s", certfile, strerror(errno));
         return CKR_FUNCTION_FAILED;
     }
     slot->certificate = PEM_read_X509(fp, NULL, NULL, NULL);
     fclose(fp);
     if (!slot->certificate) {
-        char errbuf[256];
-        ERR_error_string_n(ERR_get_error(), errbuf, sizeof errbuf);
-        DBG("Cannot read certificate from '%s': %s", certfile, errbuf);
+        OSSL_ERR(certfile);
         return CKR_FUNCTION_FAILED;
     }
     slot->auth_cert = slot_get_ini_entry(slot, "AuthCert", NULL);
@@ -74,14 +72,14 @@ static int slot_init_objects(struct slot *slot)
             (enum object_type)i, slot->certificate);
         struct attr *attr = &slot->objects[i].attributes;
         if (ret != CKR_OK) {
-            DBG("Failed to create object %d for slot '%s': %lu", i, slot->name, ret);
+            ERR("Failed to create object %d for slot '%s': %lu", i, slot->name, ret);
             break;
         }
         ATTR_ADD(attr, CKA_LABEL, slot->name, strlen(slot->name), 0);
         if (slot->cka_id) {
             BIGNUM *id_hex = NULL;
             if ((size_t)BN_hex2bn(&id_hex, slot->cka_id) != strlen(slot->cka_id)) {
-                DBG("Failed to convert CKA_ID '%s' to BIGNUM", slot->cka_id);
+                ERR("Failed to convert CKA_ID '%s' to BIGNUM", slot->cka_id);
                 BN_free(id_hex);
                 return CKR_ARGUMENTS_BAD;
             }
@@ -89,6 +87,7 @@ static int slot_init_objects(struct slot *slot)
             if (id_store)
                 ATTR_ADD_STORAGE(attr, CKA_ID, id_store); // free()s id_store
         }
+        DBG("Object %d for slot '%s' initialized", i, slot->name);
     }
     return ret;
 }
@@ -101,7 +100,7 @@ ck_rv_t slot_scan(dictionary *ini, const char *filename,
     for (int i = 0; i < sections; i++) {
         struct slot *slot = slots + (*n_slots);
         if (*n_slots >= MAX_SLOTS) {
-            DBG("Too much Slot sections in '%s'. Max %d\n",
+            ERR("Too much Slot sections in '%s'. Max %d\n",
                 filename, MAX_SLOTS);
             return CKR_HOST_MEMORY;
         }
@@ -111,20 +110,20 @@ ck_rv_t slot_scan(dictionary *ini, const char *filename,
         slot->ini = ini;
 
         if (strcasecmp(slot_get_ini_entry(slot, "SignServer", ""), "true")) {
-            DBG("Skipping section '%s' as it is not a SignServer slot",
+            INFO("Skipping section '%s' as it is not a SignServer slot",
                 slot->name);
             continue;
         }
         if (strlen(slot->name) > MAX_SECTION_NAME) {
-            DBG("Section name too long: '%s'", slot->name);
+            ERR("Section name too long: '%s'", slot->name);
             return CKR_HOST_MEMORY;
         }
         if (slot_init(slot) != CKR_OK) {
-            DBG("Failed to initialize slot '%s'", slot->name);
+            ERR("Failed to initialize slot '%s'", slot->name);
             continue;
         }
         if (slot_init_objects(slot) != CKR_OK) {
-            DBG("Failed to initialize objects for slot '%s'", slot->name);
+            ERR("Failed to initialize objects for slot '%s'", slot->name);
             continue;
         }
         *n_slots += 1;
