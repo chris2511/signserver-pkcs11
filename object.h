@@ -12,7 +12,7 @@
 #include "pkcs11.h"
 #include "attr.h"
 
-#define OBJ_ID_OFFSET 0x25ad7 
+#define OBJ_ID_OFFSET 1000
 
 enum object_type {
     OBJECT_TYPE_PUBLIC_KEY,
