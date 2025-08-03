@@ -51,6 +51,7 @@ static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userdata) {
 }
 
 ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid,
+    unsigned char *md, unsigned long md_len,
     unsigned char *signature, unsigned long *signature_len)
 {
     DBG("Requesting signature for object %lu", sig->obj->object_id);
@@ -73,7 +74,7 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     // data (direkt aus Speicher, explizit als application/octet-stream)
     part = curl_mime_addpart(mime);
     curl_mime_name(part, "data");
-    curl_mime_data(part, (const char*)sig->bm->data, sig->bm->length);
+    curl_mime_data(part, (const char*)md, md_len);
     curl_mime_type(part, "application/octet-stream");
     curl_mime_filename(part, "file");
 
@@ -125,32 +126,37 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK) {
-        DBG("curl_easy_perform() failed: %s", curl_easy_strerror(res));
+        ERR("curl_easy_perform() failed: %s", curl_easy_strerror(res));
         BIO_free(bio);
         return CKR_FUNCTION_FAILED;
     }
-    INFO("HTTP response code of '%s': %ld\n", url, http_code);
+    INFO("HTTP response code of '%s': %ld", url, http_code);
     // Dump bio to stderr if http response != 200
     if ((debug_level > 0 && http_code != 200) || debug_level > 2) {
         char *data;
         long len = BIO_get_mem_data(bio, &data);
         if (len > 0) {
-            DBG("Response from server:\n%.*s\n", (int)len, data);
+            if (http_code != 200) {
+                ERR("HTTP error %ld: %.*s", http_code, (int)len, data);
+            } else {
+                ERR("HTTP digest response length: %ld", len);
+            }
         } else {
             ERR("No response data received.");
         }
     }
 
     BUF_MEM *bptr = NULL;
-    BIO_get_mem_ptr(bio, &bptr);
-    if (!bptr || bptr->length == 0) {
-        ERR("No data received from server");
+    BIO_get_mem_data(bio, &bptr);
+    if (!bptr || bptr->length == 0 || http_code != 200 || bptr->length > *signature_len) {
+        ERR("Invalid server response: HTTP code %ld, data length %zd",
+            http_code, bptr ? bptr->length : 0);
         BIO_free(bio);
         return CKR_FUNCTION_FAILED;
     }
-    size_t copylen = bptr->length > *signature_len ? *signature_len : bptr->length;
-    memcpy(signature, bptr->data, copylen);
-    *signature_len = copylen;
+
+    memcpy(signature, bptr->data, bptr->length);
+    *signature_len = bptr->length;
     BIO_free(bio);
     return CKR_OK;
 }

@@ -19,7 +19,6 @@ struct signature_op {
     const struct object *obj;
     unsigned long mechanism;
     BIO *bio;
-    BUF_MEM *bm;
 };
 
 ck_rv_t signature_op_init(struct signature_op *sig);
@@ -34,6 +33,7 @@ ck_rv_t key_get_mechanism(struct object *obj,
 ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key);
 
 ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid,
+    unsigned char *md, unsigned long md_len,
     unsigned char *signature, unsigned long *signature_len);
 
 #endif
