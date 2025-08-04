@@ -21,12 +21,15 @@ static int mechanism_to_hashnid(ck_mechanism_type_t mech)
         case CKM_SHA1_RSA_PKCS:
         case CKM_SHA1_RSA_PKCS_PSS:
             return NID_sha1;
+        case CKM_ECDSA_SHA256:
         case CKM_SHA256_RSA_PKCS:
         case CKM_SHA256_RSA_PKCS_PSS:
             return NID_sha256;
+        case CKM_ECDSA_SHA384:
         case CKM_SHA384_RSA_PKCS:
         case CKM_SHA384_RSA_PKCS_PSS:
             return NID_sha384;
+        case CKM_ECDSA_SHA512:
         case CKM_SHA512_RSA_PKCS:
         case CKM_SHA512_RSA_PKCS_PSS:
             return NID_sha512;

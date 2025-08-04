@@ -36,6 +36,9 @@ static const char* mechanism_to_signserver_algo(ck_mechanism_type_t mech)
             return "NONEwithRSAandMGF1";
         case CKM_ECDSA:
         case CKM_ECDSA_SHA1:
+        case CKM_ECDSA_SHA256:
+        case CKM_ECDSA_SHA384:
+        case CKM_ECDSA_SHA512:
             return "NONEwithECDSA";
         default:
             return "";
