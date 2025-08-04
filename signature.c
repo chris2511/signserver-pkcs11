@@ -130,6 +130,75 @@ static int unpack_pkcs15_signature(struct signature_op *sig)
     return hashnid;
 }
 
+static int padding_from_mechanism(ck_mechanism_type_t mech)
+{
+    switch (mech) {
+        case CKM_RSA_PKCS:
+        case CKM_SHA1_RSA_PKCS:
+        case CKM_SHA256_RSA_PKCS:
+        case CKM_SHA384_RSA_PKCS:
+        case CKM_SHA512_RSA_PKCS:
+            return RSA_PKCS1_PADDING;
+        case CKM_RSA_PKCS_PSS:
+        case CKM_SHA1_RSA_PKCS_PSS:
+        case CKM_SHA256_RSA_PKCS_PSS:
+        case CKM_SHA384_RSA_PKCS_PSS:
+        case CKM_SHA512_RSA_PKCS_PSS:
+            return RSA_PKCS1_PSS_PADDING;
+        default:
+            return -1;
+    }
+}
+
+static ck_rv_t swsign(struct signature_op *sig, const struct slot *slot, int hashnid,
+    unsigned char *md, unsigned long md_len,
+    unsigned char *signature, unsigned long *signature_len)
+{
+    DBG("Using private key for slot '%s' to sign", slot->name);
+    EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(slot->private, NULL);
+    if (!ctx) {
+        OSSL_ERR("Failed to create EVP_PKEY_CTX");
+        return CKR_HOST_MEMORY;
+    }
+    if (EVP_PKEY_sign_init(ctx) <= 0){
+        ERR("Failed to initialize signing operation");
+        EVP_PKEY_CTX_free(ctx);
+        return CKR_GENERAL_ERROR;
+    }
+    int padding = padding_from_mechanism(sig->mechanism);
+    if (padding > 0) {
+        if (EVP_PKEY_CTX_set_rsa_padding(ctx, padding) <= 0) {
+            OSSL_ERR("Failed to set RSA padding");
+            EVP_PKEY_CTX_free(ctx);
+            return CKR_GENERAL_ERROR;
+        }
+    }
+    if (EVP_PKEY_CTX_set_signature_md(ctx, EVP_get_digestbynid(hashnid)) <= 0){
+        ERR("Failed to set signature MD %d (%s)", hashnid, OBJ_nid2sn(hashnid));
+        EVP_PKEY_CTX_free(ctx);
+        return CKR_GENERAL_ERROR;
+    }
+    if (EVP_PKEY_sign(ctx, signature, signature_len, md, md_len) <= 0) {
+        OSSL_ERR("EVP_PKEY_sign failed");
+        EVP_PKEY_CTX_free(ctx);
+        return CKR_FUNCTION_FAILED;
+    }
+    EVP_PKEY_CTX_free(ctx);
+    INFO("Signature created with hashnid %d (%s) and %lu bytes",
+        hashnid, OBJ_nid2sn(hashnid), *signature_len);
+
+    if (EVP_PKEY_get_base_id(slot->private) == EVP_PKEY_EC) {
+        const unsigned char *ptr = signature;
+        // Need to convert the ECDSA_SIG to concatenated r+s format
+        // signature was large enough to hold the ECDSA_SIG,
+        // it will bear the smaller r+s
+        ECDSA_SIG *sig_ec = d2i_ECDSA_SIG(NULL, &ptr, *signature_len);
+        *signature_len = BN_bn2bin(ECDSA_SIG_get0_r(sig_ec), signature);
+        *signature_len += BN_bn2bin(ECDSA_SIG_get0_s(sig_ec), signature + *signature_len);
+    }
+    return CKR_OK;
+}
+
 ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
         unsigned char *signature, unsigned long *signature_len)
 {
@@ -165,7 +234,10 @@ ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
     }
     DBG("Calling plainsign with hashnid %d (%s) and %u bytes",
         hashnid, OBJ_nid2sn(hashnid), md_len);
-    return plainsign(sig, slot, hashnid, md, md_len, signature, signature_len);
+    if (slot->private)
+        return swsign(sig, slot, hashnid, md, md_len, signature, signature_len);
+    else
+        return plainsign(sig, slot, hashnid, md, md_len, signature, signature_len);
 }
 
 const ck_mechanism_type_t rsa_mechs[] = {

@@ -22,6 +22,8 @@ void slot_free(struct slot *slot)
         object_free(slot->objects +i);
     if (slot->certificate)
         X509_free(slot->certificate);
+    if (slot->private)
+        EVP_PKEY_free(slot->private);
     memset(slot, 0, sizeof(struct slot));
 }
 
@@ -49,14 +51,19 @@ static int slot_init(struct slot *slot)
         return CKR_FUNCTION_FAILED;
     }
     slot->certificate = PEM_read_X509(fp, NULL, NULL, NULL);
+    rewind(fp);
+    slot->private = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
     fclose(fp);
     if (!slot->certificate) {
         OSSL_ERR(certfile);
         return CKR_FUNCTION_FAILED;
     }
+    if (slot->private)
+        INFO("Private software key loaded for slot '%s'", slot->name);
+
     slot->auth_cert = slot_get_ini_entry(slot, "AuthCert", NULL);
     slot->auth_pass = slot_get_ini_entry(slot, "AuthPass", "");
-    slot->worker = slot_get_ini_entry(slot, "WorkerName", "PlainSigner");
+    slot->worker = slot_get_ini_entry(slot, "WorkerName", "");
     slot->url = slot_get_ini_entry(slot, "url", NULL);
     slot->cka_id = slot_get_ini_entry(slot, "cka_id", NULL);
 

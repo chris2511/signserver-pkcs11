@@ -19,13 +19,13 @@ struct slot {
     dictionary *ini;
     /* Key management */
     X509 *certificate;
+    EVP_PKEY *private;
     const char *auth_cert;
     const char *auth_pass;
     const char *worker;
     const char *url;
     const char *cka_id;
     struct object objects[OBJECT_TYPE_MAX];
-    
 };
 
 void slot_free(struct slot *slot);
