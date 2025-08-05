@@ -55,30 +55,15 @@ static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return total;
 }
 
-int ossl_ctx_switch(OSSL_LIB_CTX *new_ctx, OSSL_LIB_CTX *old_ctx, int ret)
-{
-    if (new_ctx) {
-        OSSL_LIB_CTX_set0_default(old_ctx);
-        OSSL_LIB_CTX_free(new_ctx);
-    }
-    return ret;
-}
-
-ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid,
-    unsigned char *md, unsigned long md_len,
-    unsigned char *signature, unsigned long *signature_len)
+static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *slot, int hashnid,
+    unsigned char *md, unsigned long md_len, BIO *bio)
 {
     DBG("Requesting signature for object %lu", sig->obj->object_id);
-
-    OSSL_LIB_CTX *octx = NULL;
-    OSSL_LIB_CTX *nctx = OSSL_LIB_CTX_new();
-    if (nctx)
-        octx = OSSL_LIB_CTX_set0_default(nctx);
 
     CURL *curl = curl_easy_init();
     if (!curl) {
         ERR("curl_easy_init failed");
-        return ossl_ctx_switch(nctx, octx, CKR_FUNCTION_FAILED);
+        return CKR_FUNCTION_FAILED;
     }
 
     CURLcode res;
@@ -127,13 +112,6 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "P12");
     curl_easy_setopt(curl, CURLOPT_KEYPASSWD, slot->auth_pass);
 
-    BIO *bio = BIO_new(BIO_s_mem());
-    if (!bio) {
-        OSSL_ERR("BIO_new(BIO_s_mem()) failed");
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-        return ossl_ctx_switch(nctx, octx, CKR_FUNCTION_FAILED);
-    }
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, bio);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
 
@@ -145,8 +123,7 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
 
     if (res != CURLE_OK) {
         ERR("curl_easy_perform() failed: %s", curl_easy_strerror(res));
-        BIO_free(bio);
-        return ossl_ctx_switch(nctx, octx, CKR_FUNCTION_FAILED);
+        return CKR_FUNCTION_FAILED;
     }
     INFO("HTTP response code of '%s': %ld", url, http_code);
     // Dump bio to stderr if http response != 200
@@ -163,18 +140,45 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
             ERR("No response data received.");
         }
     }
+    return http_code == 200 ? CKR_OK : CKR_FUNCTION_FAILED;
+}
 
-    const char *ptr;
-    int len = BIO_get_mem_data(bio, &ptr);
-    if (len == 0 || http_code != 200 || len > (int)*signature_len) {
-        ERR("Invalid server response: HTTP code %ld, data length %d %lu",
-            http_code, len, *signature_len);
-        BIO_free(bio);
-        return ossl_ctx_switch(nctx, octx, CKR_FUNCTION_FAILED);
+static ck_rv_t run_curl(struct signature_op *sig, const struct slot *slot, int hashnid,
+    unsigned char *md, unsigned long md_len, BIO *bio)
+{
+    OSSL_LIB_CTX *octx, *nctx = OSSL_LIB_CTX_new();
+
+    octx = nctx ? OSSL_LIB_CTX_set0_default(nctx) : NULL;
+
+    ck_rv_t r = run_curl_ossl_ctx(sig, slot, hashnid, md, md_len, bio);
+    
+    if (nctx) {
+        OSSL_LIB_CTX_set0_default(octx);
+        OSSL_LIB_CTX_free(nctx);
     }
+    return r;
+}
 
+ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid,
+    unsigned char *md, unsigned long md_len,
+    unsigned char *signature, unsigned long *signature_len)
+{
+    BIO *bio = BIO_new(BIO_s_mem());
+    if (!bio) {
+        OSSL_ERR("BIO_new(BIO_s_mem()) failed");
+        return CKR_FUNCTION_FAILED;
+    }
+    ck_rv_t rv = run_curl(sig, slot, hashnid, md, md_len, bio);
+    
+    char *ptr;
+    long len = BIO_get_mem_data(bio, &ptr);
+    if (len <= 0 || (unsigned long)len > *signature_len || rv != CKR_OK) {
+        BIO_free(bio);
+        return CKR_FUNCTION_FAILED;
+    }
     memcpy(signature, ptr, len);
     *signature_len = len;
+
     BIO_free(bio);
-    return ossl_ctx_switch(nctx, octx, CKR_OK);
+    return rv;
 }
