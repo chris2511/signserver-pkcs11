@@ -66,7 +66,6 @@ static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *sl
         return CKR_FUNCTION_FAILED;
     }
 
-    CURLcode res;
     curl_mime *mime = curl_mime_init(curl);
     curl_mimepart *part;
 
@@ -104,8 +103,9 @@ static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *sl
     // Enable verbose output for debugging
     if (debug_level > 2)
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, slot->verify_peer);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, slot->verify_peer);
 
     // Client-Zertifikat (P12) und Passwort
     curl_easy_setopt(curl, CURLOPT_SSLCERT, slot->auth_cert);
@@ -115,7 +115,7 @@ static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *sl
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, bio);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
 
-    res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(curl);
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     curl_mime_free(mime);

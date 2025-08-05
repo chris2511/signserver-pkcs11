@@ -66,7 +66,11 @@ static int slot_init(struct slot *slot)
     slot->worker = slot_get_ini_entry(slot, "WorkerName", "");
     slot->url = slot_get_ini_entry(slot, "url", NULL);
     slot->cka_id = slot_get_ini_entry(slot, "cka_id", NULL);
-
+    const char *verify_peer_str = slot_get_ini_entry(slot, "VerifyPeer", "True");
+    slot->verify_peer = strcasecmp(verify_peer_str, "True") == 0 ||
+                        strcasecmp(verify_peer_str, "1") == 0 ||
+                        strcasecmp(verify_peer_str, "yes") == 0 ||
+                        strcasecmp(verify_peer_str, "on") == 0;
     return CKR_OK;
 }
 

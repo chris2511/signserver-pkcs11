@@ -25,6 +25,7 @@ struct slot {
     const char *worker;
     const char *url;
     const char *cka_id;
+    long verify_peer;
     struct object objects[OBJECT_TYPE_MAX];
 };
 
