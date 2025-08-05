@@ -21,6 +21,7 @@
 #include <limits.h>
 
 #include <openssl/err.h>
+#include <openssl/provider.h>
 
 #define INITIALIZED if (!ini) return CKR_CRYPTOKI_NOT_INITIALIZED
 #define CHECKARG(x) if (!(x)) return CKR_ARGUMENTS_BAD;
@@ -66,6 +67,7 @@ ck_rv_t C_Initialize(void *init)
     if (ini)
         return CKR_CRYPTOKI_ALREADY_INITIALIZED;
     iniparser_set_error_callback(iniparser_err);
+    OSSL_PROVIDER_load(NULL, "default");
 
     memset(sessions, 0, sizeof sessions);
     memset(slots, 0, sizeof slots);
