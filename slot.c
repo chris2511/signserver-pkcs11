@@ -83,17 +83,25 @@ static int slot_init_objects(struct slot *slot)
             break;
         }
         ATTR_ADD(attr, CKA_LABEL, slot->name, strlen(slot->name), 0);
+        BIGNUM *id_hex = NULL;
         if (slot->cka_id) {
-            BIGNUM *id_hex = NULL;
             if ((size_t)BN_hex2bn(&id_hex, slot->cka_id) != strlen(slot->cka_id)) {
                 ERR("Failed to convert CKA_ID '%s' to BIGNUM", slot->cka_id);
                 BN_free(id_hex);
                 return CKR_ARGUMENTS_BAD;
             }
-            struct storage *id_store = storage_BN(id_hex); // free()s id_hex
-            if (id_store)
-                ATTR_ADD_STORAGE(attr, CKA_ID, id_store); // free()s id_store
+        } else {
+            id_hex = BN_new();
+            if (!id_hex) {
+                ERR("Failed to allocate BIGNUM for slot ID");
+                return CKR_HOST_MEMORY;
+            }
+            BN_set_word(id_hex, slot->id +0x1000000);
         }
+        struct storage *id_store = storage_BN(id_hex); // free()s id_hex
+        if (id_store)
+            ATTR_ADD_STORAGE(attr, CKA_ID, id_store); // free()s id_store
+
         DBG("Object %d for slot '%s' initialized", i, slot->name);
     }
     return ret;
