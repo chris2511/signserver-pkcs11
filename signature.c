@@ -186,16 +186,6 @@ static ck_rv_t swsign(struct signature_op *sig, const struct slot *slot, int has
     EVP_PKEY_CTX_free(ctx);
     INFO("Signature created with hashnid %d (%s) and %lu bytes",
         hashnid, OBJ_nid2sn(hashnid), *signature_len);
-
-    if (EVP_PKEY_get_base_id(slot->private) == EVP_PKEY_EC) {
-        const unsigned char *ptr = signature;
-        // Need to convert the ECDSA_SIG to concatenated r+s format
-        // signature was large enough to hold the ECDSA_SIG,
-        // it will bear the smaller r+s
-        ECDSA_SIG *sig_ec = d2i_ECDSA_SIG(NULL, &ptr, *signature_len);
-        *signature_len = BN_bn2bin(ECDSA_SIG_get0_r(sig_ec), signature);
-        *signature_len += BN_bn2bin(ECDSA_SIG_get0_s(sig_ec), signature + *signature_len);
-    }
     return CKR_OK;
 }
 
@@ -234,10 +224,39 @@ ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
     }
     DBG("Calling plainsign with hashnid %d (%s) and %u bytes",
         hashnid, OBJ_nid2sn(hashnid), md_len);
-    if (slot->private)
-        return swsign(sig, slot, hashnid, md, md_len, signature, signature_len);
-    else
-        return plainsign(sig, slot, hashnid, md, md_len, signature, signature_len);
+
+    ck_rv_t ret = slot->private ?
+        swsign(sig, slot, hashnid, md, md_len, signature, signature_len) :
+        plainsign(sig, slot, hashnid, md, md_len, signature, signature_len);
+
+    if (slot->objects[0].keytype == EVP_PKEY_EC) {
+        const unsigned char *ptr = signature;
+        // Need to convert the ECDSA_SIG to concatenated r+s format
+        // signature was large enough to hold the ECDSA_SIG,
+        // it will bear the smaller r+s
+        ECDSA_SIG *sig_ec = d2i_ECDSA_SIG(NULL, &ptr, *signature_len);
+        if (!sig_ec) {
+            OSSL_ERR("Failed to unpack ECDSA signature");
+            return CKR_FUNCTION_FAILED;
+        }
+        int r_len = BN_num_bytes(ECDSA_SIG_get0_r(sig_ec));
+        int s_len = BN_num_bytes(ECDSA_SIG_get0_s(sig_ec));
+        // r and s must always be the same size. Pad the smaller one.
+        int maxlen = r_len < s_len ? s_len : r_len;
+        if (*signature_len < maxlen *2U) {
+            ERR("Invalid Signature len: %lu (%d,%d) for key '%s'",
+                *signature_len, r_len, s_len, slot->name);
+            ECDSA_SIG_free(sig_ec);
+            return CKR_FUNCTION_FAILED;
+        }
+        *signature_len = 2 * maxlen;
+        memset(signature, 0, *signature_len);
+        /* right align the numbers in their half */
+        BN_bn2bin(ECDSA_SIG_get0_r(sig_ec), signature + (maxlen - r_len));
+        BN_bn2bin(ECDSA_SIG_get0_s(sig_ec), signature + (2 * maxlen - s_len));
+        ECDSA_SIG_free(sig_ec);
+    }
+    return ret;
 }
 
 const ck_mechanism_type_t rsa_mechs[] = {
@@ -347,7 +366,7 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
     struct attr *attr = &obj->attributes;
     DBG("Key: %lu", obj->object_id);
     struct storage *store;
-    if (EVP_PKEY_get_base_id(key) == EVP_PKEY_RSA) {
+    if (obj->keytype == EVP_PKEY_RSA) {
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
         ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, EVP_PKEY_bits(key));
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs, 0);
@@ -357,7 +376,7 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
         ATTR_ADD_STORAGE(attr, CKA_PUBLIC_EXPONENT, store);
         return CKR_OK;
     }
-    if (EVP_PKEY_get_base_id(key) == EVP_PKEY_EC) {
+    if (obj->keytype == EVP_PKEY_EC) {
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_EC);
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, ec_mechs, sizeof ec_mechs, 0);
 
