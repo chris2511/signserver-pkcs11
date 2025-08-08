@@ -14,6 +14,7 @@
 #include "object.h"
 
 #include <openssl/bio.h>
+#include <openssl/x509.h>
 
 struct signature_op {
     const struct object *obj;
@@ -36,4 +37,5 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     unsigned char *md, unsigned long md_len,
     unsigned char *signature, unsigned long *signature_len);
 
+X509 *retrieve_certificate(const struct slot *slot);
 #endif

@@ -4,10 +4,11 @@
  * Copyright (C) 2025 Christian Hohnstaedt.
  * All rights reserved.
  */
- 
-#include "slot.h" 
-#include "link.h" 
-#include "object.h" 
+
+#include "slot.h"
+#include "link.h"
+#include "object.h"
+#include "signature.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -39,28 +40,6 @@ const char *slot_get_ini_entry(const struct slot *slot,
 static int slot_init(struct slot *slot)
 {
     DBG("Scanning section %d: '%s'", slot->section_idx, slot->name);
-    const char *certfile = slot_get_ini_entry(slot, "Certificate", NULL);
-    if (!certfile) {
-        ERR("No certificate file specified for slot '%s'", slot->name);
-        return CKR_FUNCTION_FAILED;
-    }
-    DBG("Certificate file for slot '%s': '%s'", slot->name, certfile);
-    FILE *fp = fopen(certfile, "r");
-    if (!fp) {
-        ERR("Cannot open certificate file '%s': %s", certfile, strerror(errno));
-        return CKR_FUNCTION_FAILED;
-    }
-    slot->certificate = PEM_read_X509(fp, NULL, NULL, NULL);
-    rewind(fp);
-    slot->private = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
-    fclose(fp);
-    if (!slot->certificate) {
-        OSSL_ERR(certfile);
-        return CKR_FUNCTION_FAILED;
-    }
-    if (slot->private)
-        INFO("Private software key loaded for slot '%s'", slot->name);
-
     slot->auth_cert = slot_get_ini_entry(slot, "AuthCert", NULL);
     slot->auth_pass = slot_get_ini_entry(slot, "AuthPass", "");
     slot->worker = slot_get_ini_entry(slot, "WorkerName", "");
@@ -71,6 +50,29 @@ static int slot_init(struct slot *slot)
                         strcasecmp(verify_peer_str, "1") == 0 ||
                         strcasecmp(verify_peer_str, "yes") == 0 ||
                         strcasecmp(verify_peer_str, "on") == 0;
+
+    const char *certfile = slot_get_ini_entry(slot, "Certificate", NULL);
+    if (certfile) {
+        DBG("Certificate file for slot '%s': '%s'", slot->name, certfile);
+        FILE *fp = fopen(certfile, "r");
+        if (!fp) {
+            ERR("Cannot open certificate file '%s': %s", certfile, strerror(errno));
+            return CKR_FUNCTION_FAILED;
+        }
+        slot->certificate = PEM_read_X509(fp, NULL, NULL, NULL);
+        rewind(fp);
+        slot->private = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
+        fclose(fp);
+    } else {
+        slot->certificate = retrieve_certificate(slot);
+    }
+    if (!slot->certificate) {
+        ERR("No certificate available for slot '%s'", slot->name);
+        return CKR_FUNCTION_FAILED;
+    }
+    if (slot->private)
+        INFO("Private software key loaded for slot '%s'", slot->name);
+
     return CKR_OK;
 }
 

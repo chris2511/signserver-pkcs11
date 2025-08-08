@@ -110,10 +110,11 @@ static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *userdata) {
     return total;
 }
 
-static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *slot, int hashnid,
+static ck_rv_t run_curl_ossl_ctx(const struct slot *slot, int hashnid,
+    ck_mechanism_type_t mechanism,
     unsigned char *md, unsigned long md_len, BIO *bio)
 {
-    DBG("Requesting signature for object %lu", sig->obj->object_id);
+    DBG("Requesting signature for slot %lu", slot->id);
 
     if (md_len > EVP_MAX_MD_SIZE) {
         ERR("Message digest length %lu exceeds maximum %d", md_len, EVP_MAX_MD_SIZE);
@@ -147,7 +148,7 @@ static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *sl
       "\"encoding\": \"BASE64\","
       "\"data\": \"%s\""
     "}",
-    OBJ_nid2sn(hashnid), mechanism_to_signserver_algo(sig->mechanism), b64);
+    OBJ_nid2sn(hashnid), mechanism_to_signserver_algo(mechanism), b64);
 
     DBG2("Request JSON: '%s'", request_json);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -197,14 +198,15 @@ static ck_rv_t run_curl_ossl_ctx(struct signature_op *sig, const struct slot *sl
     return http_code == 200 ? CKR_OK : CKR_FUNCTION_FAILED;
 }
 
-static ck_rv_t run_curl(struct signature_op *sig, const struct slot *slot, int hashnid,
+static ck_rv_t run_curl(const struct slot *slot, int hashnid,
+    ck_mechanism_type_t mechanism,
     unsigned char *md, unsigned long md_len, BIO *bio)
 {
     OSSL_LIB_CTX *octx, *nctx = OSSL_LIB_CTX_new();
 
     octx = nctx ? OSSL_LIB_CTX_set0_default(nctx) : NULL;
 
-    ck_rv_t r = run_curl_ossl_ctx(sig, slot, hashnid, md, md_len, bio);
+    ck_rv_t r = run_curl_ossl_ctx(slot, hashnid, mechanism, md, md_len, bio);
 
     if (nctx) {
         OSSL_LIB_CTX_set0_default(octx);
@@ -222,7 +224,7 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
         OSSL_ERR("BIO_new(BIO_s_mem()) failed");
         return CKR_FUNCTION_FAILED;
     }
-    ck_rv_t rv = run_curl(sig, slot, hashnid, md, md_len, bio);
+    ck_rv_t rv = run_curl(slot, hashnid, sig->mechanism, md, md_len, bio);
     if (rv != CKR_OK) {
         BIO_free(bio);
         return rv;
@@ -230,4 +232,27 @@ ck_rv_t plainsign(struct signature_op *sig, const struct slot *slot, int hashnid
     rv = extract_json(bio, "data", signature, signature_len);
     BIO_free(bio);
     return rv;
+}
+
+X509 *retrieve_certificate(const struct slot *slot)
+{
+    unsigned char cert[2048];
+    const unsigned char *p = cert;
+    unsigned long cert_len = (unsigned long)sizeof cert;
+    unsigned char md[SHA256_DIGEST_LENGTH] = {0};
+
+    BIO *bio = BIO_new(BIO_s_mem());
+    if (!bio) {
+        OSSL_ERR("BIO_new(BIO_s_mem()) failed");
+        return NULL;
+    }
+    ck_rv_t rv = run_curl(slot, NID_sha256, CKM_VENDOR_DEFINED,
+                          md, SHA256_DIGEST_LENGTH, bio);
+    if (rv != CKR_OK) {
+        BIO_free(bio);
+        return NULL;
+    }
+    rv = extract_json(bio, "signerCertificate", cert, &cert_len);
+    BIO_free(bio);
+    return rv == CKR_OK ?  d2i_X509(NULL, &p, cert_len) : NULL;
 }
