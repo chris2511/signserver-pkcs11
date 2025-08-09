@@ -23,32 +23,45 @@
 #define MAX_SESSIONS 8
 #define MAX_ATTRIBUTES 32
 
-#define COL_CYAN  "\x1b[36m"
-#define COL_BLUE  "\x1b[94m"
-#define COL_GREEN "\x1b[92m"
-#define COL_RED   "\x1b[31m"
-#define COL_MAGENTA "\x1b[35m"
-#define COL_BOLD  "\x1b[1m"
-#define COL_RESET "\x1b[0m"
+extern const char *colors[];
+#define COL_CYAN  colors[0]
+#define COL_BLUE  colors[1]
+#define COL_GREEN colors[2]
+#define COL_RED   colors[3]
+#define COL_MAGENTA colors[4]
+#define COL_BOLD   colors[5]
+#define COL_RESET  colors[6]
 
 extern int debug_level;
 
-static inline char* get_debug_level(int lvl)
+static inline const char* get_debug_color(int lvl)
 {
     switch (lvl) {
-    case 1: return COL_RED "ERR " ;
-    case 2: return COL_GREEN "INFO" ;
-    case 3: return COL_CYAN "DBG " ;
-    case 4: return COL_BLUE "DBG2" ;
+    case 1: return COL_RED;
+    case 2: return COL_GREEN;
+    case 3: return COL_CYAN;
+    case 4: return COL_BLUE;
+    }
+    return "";
+}
+
+static inline const char* get_debug_level(int lvl)
+{
+    switch (lvl) {
+    case 1: return "ERR " ;
+    case 2: return "INFO" ;
+    case 3: return "DBG " ;
+    case 4: return "DBG2" ;
     }
     return "";
 }
 
 #define _DBG(lvl, fmt, ...) \
     while (debug_level >= (lvl)) { \
-        fprintf(stderr, "%s " COL_MAGENTA "%s" COL_GREEN COL_BOLD ":%d " \
-            COL_BLUE "%s() " COL_RESET ,\
-            get_debug_level(lvl), __FILE__, __LINE__, __func__); \
+        fprintf(stderr, "%s%s %s%s%s%s:%d %s%s() %s", \
+            get_debug_color(lvl), get_debug_level(lvl), \
+            COL_MAGENTA, __FILE__, COL_GREEN, COL_BOLD, \
+             __LINE__, COL_BLUE, __func__, COL_RESET); \
         fprintf(stderr, fmt, ##__VA_ARGS__); \
         fputs("\n", stderr); \
         break; \

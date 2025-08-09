@@ -32,6 +32,18 @@
     if (slot_id >= MAX_SLOTS || slots[slot_id].section_idx == -1) \
         return CKR_SLOT_ID_INVALID;
 
+#define C_CYAN  "\x1b[36m"
+#define C_BLUE  "\x1b[94m"
+#define C_GREEN "\x1b[92m"
+#define C_RED   "\x1b[31m"
+#define C_MAGENTA "\x1b[35m"
+#define C_BOLD  "\x1b[1m"
+#define C_RESET "\x1b[0m"
+
+const char *colors[] = {
+    C_CYAN, C_BLUE, C_GREEN, C_RED, C_MAGENTA, C_BOLD, C_RESET
+};
+
 int debug_level;
 static dictionary *ini;
 static struct session sessions[MAX_SESSIONS];
@@ -53,7 +65,7 @@ static int iniparser_err(const char *fmt, ...)
         return 0; // Do not print errors if debug level is low
     va_list args;
     va_start(args, fmt);
-    fprintf(stderr, COL_MAGENTA "[iniparser]: " COL_RESET);
+    fprintf(stderr, "%s[iniparser]: %s", COL_MAGENTA, COL_RESET);
     vfprintf(stderr, fmt, args);
     va_end(args);
     return 0;
@@ -85,6 +97,10 @@ ck_rv_t C_Initialize(void *init)
     for (int i=0; i < MAX_SLOTS; i++)
         slots[i].section_idx = -1; // Unused
 
+    if (!isatty(STDERR_FILENO)) {
+        for (size_t i=0; i < sizeof colors / sizeof colors[0]; i++)
+            colors[i] = "";
+    }
     n_slots = 0;
     const char *ini_file = getenv("SIGNSERVER_PKCS11_INI");
     if (!ini_file || !*ini_file)
