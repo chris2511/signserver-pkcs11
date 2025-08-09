@@ -69,7 +69,7 @@ static ck_rv_t extract_json(BIO *bio, const char *key,
         if (start) start = strchr(start + 1, '"'); // find " after key
         if (start) end = strchr(++start, '"');
         if (end) break;
-    } while (!end);
+    } while (start && !end);
     if (!start || !end) {
         ERR("Key '%s' not found in JSON response", key);
         return CKR_FUNCTION_FAILED;
