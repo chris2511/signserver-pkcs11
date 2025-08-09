@@ -5,7 +5,7 @@ TMP_DIR="tmp"
 
 BUILD_DIR="../build"
 export SIGNSERVER_PKCS11_INI="signserver-pkcs11.ini"
-export SIGNSERVER_PKCS11_DEBUG=0
+export SIGNSERVER_PKCS11_DEBUG=1
 # For the pkcs11-provider
 export PKCS11_PROVIDER_MODULE="${BUILD_DIR}/signserver-pkcs11.so"
 # For the libp11 Engine
@@ -45,5 +45,12 @@ for obj in server-rsa server-ec soft-rsa soft-ec; do
             -signature ${TMP_DIR}/signature.${obj}.${alg} ${datafile}
   done
 done
+
+echo Try with C_Login
+export SIGNSERVER_PKCS11_INI="signserver-pkcs11-login.ini"
+openssl dgst -provider pkcs11 -sign "pkcs11:object=login-ec;pin-value=pass" -sha256 \
+        -out ${TMP_DIR}/signature.login-ec ${datafile}
+openssl dgst -verify "${TMP_DIR}/server-ec.pub" -sha256 \
+        -signature ${TMP_DIR}/signature.login-ec ${datafile}
 
 rm -rf ${TMP_DIR}

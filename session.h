@@ -15,14 +15,13 @@
 #include "iniparser.h"
 
 struct session {
-    const struct slot *slot;
+    struct slot *slot;
     /* Operation (find, sign ..) in progress */
     unsigned long curr_op;
     const struct object *curr_obj;
     /* FindObjects*() data */
     unsigned long find_pos;
     unsigned long n_found;
-    struct storage *pin;
     struct signature_op signature;
     const struct object *found_objects[OBJECT_TYPE_MAX];
 };

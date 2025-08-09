@@ -163,9 +163,10 @@ static ck_rv_t run_curl_ossl_ctx(const struct slot *slot, int hashnid,
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, slot->verify_peer);
 
     // Client-Zertifikat (P12) und Passwort
-    curl_easy_setopt(curl, CURLOPT_SSLCERT, slot->auth_cert);
-    curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "P12");
-    curl_easy_setopt(curl, CURLOPT_KEYPASSWD, slot->auth_pass);
+    curl_easy_setopt(curl, CURLOPT_SSLCERT_BLOB, &slot->auth_blob);
+    curl_easy_setopt(curl, CURLOPT_SSLCERTTYPE, "PEM");
+    curl_easy_setopt(curl, CURLOPT_SSLKEY_BLOB, &slot->auth_blob);
+    curl_easy_setopt(curl, CURLOPT_SSLKEYTYPE, "PEM");
 
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, bio);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);

@@ -104,7 +104,7 @@ ck_rv_t C_Initialize(void *init)
     n_slots = 0;
     const char *ini_file = getenv("SIGNSERVER_PKCS11_INI");
     if (!ini_file || !*ini_file)
-        ini_file = "/etc/signserver/pkcs11.ini";
+        ini_file = "/etc/signserver-pkcs11.ini";
     DBG("Loading INI file: '%s'", ini_file);
     ini = iniparser_load(ini_file);
     if (!ini) {
@@ -194,16 +194,23 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     CHECKARG(info);
     CHECK_SLOT(slot_id);
 
+    int sess_count = 0;
+    for (int i = 0; i < MAX_SESSIONS; i++) {
+        if (sessions[i].slot)
+            sess_count++;
+    }
     memset(info, 0, sizeof *info);
 
     memcpy(info->manufacturer_id, ckinfo.manufacturer_id, 32);
     info->flags = CKF_TOKEN_INITIALIZED | CKF_WRITE_PROTECTED;
+    if (slot_login_required(slots +slot_id))
+        info->flags |= CKF_LOGIN_REQUIRED;
 
     memcpy(info->model, "Multi SignServer Access         ", sizeof(info->model));
     memset(info->serial_number, ' ', sizeof(info->serial_number));
     info->serial_number[0] = '1';
-    info->max_session_count = CK_EFFECTIVELY_INFINITE;
-    info->session_count = CK_UNAVAILABLE_INFORMATION;
+    info->max_session_count = MAX_SESSIONS;
+    info->session_count = sess_count;
     info->max_rw_session_count = CK_EFFECTIVELY_INFINITE;
     info->rw_session_count = CK_UNAVAILABLE_INFORMATION;
     info->max_pin_len = 0;
@@ -229,7 +236,6 @@ ck_rv_t C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
     CHECK_SLOT(slot_id);
     CHECKARG(session);
     
-
     if ((flags & CKF_SERIAL_SESSION) == 0)
         return CKR_SESSION_PARALLEL_NOT_SUPPORTED;
     if (flags & CKF_RW_SESSION)
@@ -277,9 +283,11 @@ ck_rv_t C_GetSessionInfo(ck_session_handle_t session, struct ck_session_info *in
     CHECK_SESSION(session);
     CHECKARG(info);
 
+    const struct slot *slot = sessions[session].slot;
     memset(info, 0, sizeof *info);
-    info->slot_id = sessions[session].slot->id;
-    info->state = CKS_RO_PUBLIC_SESSION;
+    info->slot_id = slot->id;
+    info->state = slot_login_required(slot) ?
+                    CKS_RO_PUBLIC_SESSION : CKS_RO_USER_FUNCTIONS;
     info->flags = CKF_SERIAL_SESSION;
     info->device_error = 0;
     DBG("End");
@@ -369,7 +377,6 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     CHECKARG(templ);
     struct session *sess = sessions +session;
 
-
     const struct object *obj = session_object_by_serial(sess, object);
     if (!obj)
         return CKR_OBJECT_HANDLE_INVALID;
@@ -387,15 +394,21 @@ ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
     CHECK_SESSION(session);
     CHECKARG(pin);
     struct session *sess = sessions +session;
+    struct slot *slot = sess->slot;
 
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
     if (user_type != CKU_USER && user_type != CKU_SO)
         return CKR_USER_TYPE_INVALID;
-    if (sess->pin)
+
+    char pass[256];
+    if (!slot_login_required(slot))
         return CKR_USER_ALREADY_LOGGED_IN;
-    sess->pin = storage_new(pin, pin_len);
-    return CKR_OK;
+    if (pin_len == 0 || pin_len >= sizeof pass)
+        return CKR_PIN_LEN_RANGE;
+    memcpy(pass, pin, pin_len);
+    pass[pin_len] = '\0';
+    return slot_load_auth_blob(slot, pass);
 }
 
 ck_rv_t C_Logout(ck_session_handle_t session)
@@ -404,14 +417,14 @@ ck_rv_t C_Logout(ck_session_handle_t session)
     INITIALIZED;
     CHECK_SESSION(session);
     struct session *sess = sessions +session;
+    struct slot *slot = sess->slot;
 
     if (sess->curr_op != 0)
         return CKR_OPERATION_ACTIVE;
-    if (!sess->pin)
+    if (slot_login_required(slot))
         return CKR_USER_NOT_LOGGED_IN;
-
-    storage_free(sess->pin);
-    sess->pin = NULL;
+    free(slot->auth_blob.data);
+    memset(&slot->auth_blob, 0, sizeof(slot->auth_blob));
     DBG("End")
     return CKR_OK;
 }

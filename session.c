@@ -23,7 +23,6 @@ const struct object *session_object_by_serial(struct session *sess, ck_object_ha
 
 void session_free(struct session *sess)
 {
-    storage_free(sess->pin);
     signature_op_free(&sess->signature);
     memset(sess, 0, sizeof *sess);
 }

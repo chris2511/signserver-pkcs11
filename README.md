@@ -19,21 +19,31 @@ The release build then only differs by the content of the INI file.
 The workers and software keys are configured by an INI file. The object name is the
 section name. A typical PKCS#11 URI looks like: `pkcs11:object=default-EC` for the default-EC section. All objects in the slot have the same name.
 Applications like `openssl x509 ...` and `openssl pkey ...` will automatically pick
-the right type, but `opensc --slot 1 -y pubkey --label server-ec` needs the type
-to pick the correct one.
+the right type, but `pkcs11-tool --slot 1 --type pubkey --label server-ec`
+needs the type to pick the correct one.
 
 ## INI file configuration
 
-The library is configured via an INI file, e.g. `signserver-pkcs11.ini`.
+The library is configured via an INI file.
+The default is `/etc/signserver-pkcs11.ini`.
 Each section defines a key/certificate source and connection parameters for a SignServer worker.
 The keys are case-insensitive.
+
+## Login
+
+The *AuthCert* password must either be empty or provided by the *AuthPass* variable or
+it is absent in case of a software key.
+
+Otherwise a C_Login is required with the correct AuthCert password.
+In this case the *Certificate* option must be set to retrieve the certificate via PKCS#11
 
 ### Example
 
 ```ini
 [default]
 SignServer = true
-# The library will perfrem a bugus signature to extract the certificate from the answer
+# The library will perform a bogus signature to extract the certificate
+# from the answer if this is unset
 Certificate = Signserver.pem
 AuthCert = SignServer_Client.pfx
 AuthPass = pass
@@ -48,11 +58,12 @@ Certificate = Signserver-signer00002.pem
 AuthCert = SignServer_Client.pfx
 AuthPass = pass
 WorkerName = EcPlainSigner
-url = https://nucci.tucht
+url = https://192.168.1.1
 
 [default-soft]
 SignServer = true
-# Certificate file must also contain the private key unencrypted
+# Certificate file must also contain the private key unencrypted to be usable as
+# software key
 Certificate = Gandalf_der_Graue.pem
 ```
 
@@ -63,11 +74,11 @@ Certificate = Gandalf_der_Graue.pem
 - **Certificate**: Path to the public certificate used by the SignServer for signing.
     Can be left empty for SignServer slots and must contain the unencrypted private key
     for software slots.
-- **AuthCert**: Path to the PKCS#12 client certificate for TLS authentication to the SignServer
-- **AuthPass**: Password for the PKCS#12 file.
+- **AuthCert**: Path to the PKCS#12 or PEM+key client certificate for TLS authentication to the SignServer
+- **AuthPass**: Password for the PKCS#12 file or the private key in the PEM file.
 - **WorkerName**: Name of the PlainSign worker in SignServer.
 - **cka_id**: (Optional) PKCS#11 CKA\_ID for key selection.
-- **url**: URL of the SignServer REST API endpoint.
+- **url**: URL of the SignServer. This library uses the REST API.
 
 You can define multiple sections for different key/certificate sources or workers.
 
