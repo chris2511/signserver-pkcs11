@@ -8,8 +8,8 @@
 #ifndef _ATTR_H
 #define _ATTR_H 1
 
-#include "storage.h"
 #include "signserver-pkcs11.h"
+#include "storage.h"
 
 extern unsigned char attr_True, attr_False;
 

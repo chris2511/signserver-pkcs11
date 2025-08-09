@@ -8,8 +8,10 @@
 #ifndef _SLOT_H
 #define _SLOT_H 1
 
-#include "iniparser.h"
 #include "object.h"
+
+#include "iniparser.h"
+
 #include <openssl/x509.h>
 
 struct slot {

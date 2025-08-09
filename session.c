@@ -8,6 +8,7 @@
 #include "session.h"
 #include "object.h" 
 #include "storage.h" 
+
 #include <string.h>
 
 const struct object *session_object_by_serial(struct session *sess, ck_object_handle_t obj_id)

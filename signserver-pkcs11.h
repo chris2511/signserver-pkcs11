@@ -10,12 +10,13 @@
 
 #define CRYPTOKI_GNU
 #include "pkcs11.h"
+
+#include <openssl/err.h>
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/param.h>
-
-#include "openssl/err.h"
 
 #define MAX_SECTION_NAME 64
 #define MAX_SLOTS 128

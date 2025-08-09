@@ -8,13 +8,13 @@
 #ifndef _KEY_H
 #define _KEY_H 1
 
-#include <stddef.h>
-
 #include "signserver-pkcs11.h"
 #include "object.h"
 
 #include <openssl/bio.h>
 #include <openssl/x509.h>
+
+#include <stddef.h>
 
 struct signature_op {
     const struct object *obj;

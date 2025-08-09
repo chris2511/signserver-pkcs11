@@ -8,8 +8,7 @@
 #ifndef _OBJECT_H
 #define _OBJECT_H 1
 
-#define CRYPTOKI_GNU
-#include "pkcs11.h"
+#include "signserver-pkcs11.h"
 #include "attr.h"
 
 #define OBJ_ID_OFFSET 1000

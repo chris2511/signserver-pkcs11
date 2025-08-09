@@ -363,7 +363,7 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
 }
 
 ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
-		       unsigned char *pin, unsigned long pin_len)
+    unsigned char *pin, unsigned long pin_len)
 {
     DBG("Start: Session: %lu User type: %lu Pin len: %lu",
         session, user_type, pin_len);
@@ -522,7 +522,8 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
 #pragma GCC diagnostic ignored "-Wcast-function-type"
     static struct ck_function_list_3_0 pkcs11_function_list = {
 
-      .version = ckinfo.cryptoki_version,
+      .version = { .major = CRYPTOKI_VERSION_MAJOR,
+                   .minor = CRYPTOKI_VERSION_MINOR },
       C_SUPPORTED(C_Initialize),
       C_SUPPORTED(C_Finalize),
       C_SUPPORTED(C_GetInfo),

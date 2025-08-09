@@ -8,10 +8,11 @@
 #ifndef _SESSION_H
 #define _SESSION_H 1
 
-#include "iniparser/iniparser.h"
 #include "signserver-pkcs11.h"
 #include "signature.h"
 #include "slot.h"
+
+#include "iniparser.h"
 
 struct session {
     const struct slot *slot;

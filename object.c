@@ -10,14 +10,13 @@
 #include "attr.h"
 #include "slot.h"
 
+#include <openssl/x509.h>
+#include <openssl/err.h>
+
+#include <sys/param.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-
-#include <sys/param.h>
-
-#include <openssl/x509.h>
-#include <openssl/err.h>
 
 void object_free(struct object *obj)
 {

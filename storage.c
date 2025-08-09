@@ -5,11 +5,12 @@
  * All rights reserved.
  */
 
-#include "storage.h"
 #include "signserver-pkcs11.h"
+#include "storage.h"
+
+#include <openssl/evp.h>
 
 #include <string.h>
-#include <openssl/evp.h>
 
 struct storage *storage_new(unsigned char *data, size_t len)
 {
