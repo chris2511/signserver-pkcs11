@@ -365,8 +365,8 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
 {
     struct attr *attr = &obj->attributes;
     DBG("Key: %lu", obj->object_id);
-    struct storage *store;
     if (obj->keytype == EVP_PKEY_RSA) {
+        struct storage *store;
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
         ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, EVP_PKEY_bits(key));
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, rsa_mechs, sizeof rsa_mechs, 0);

@@ -47,7 +47,7 @@ static const struct ck_info ckinfo = {
     .library_version = { .major = 0, .minor = 1 }
 };
 
-int iniparser_err(const char *fmt, ...)
+static int iniparser_err(const char *fmt, ...)
 {
     if (debug_level < 1)
         return 0; // Do not print errors if debug level is low
@@ -58,6 +58,17 @@ int iniparser_err(const char *fmt, ...)
     va_end(args);
     return 0;
 }
+
+static inline void copy_spaced_name(const char *name,
+            unsigned char *ck_desc, size_t ck_len)
+{
+    size_t slen = strlen(name);
+    memset(ck_desc, ' ', ck_len);
+    memcpy(ck_desc, name, MIN(slen, ck_len));
+}
+
+ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
+        __attribute__((visibility("default")));
 
 ck_rv_t C_Initialize(void *init)
 {

@@ -64,21 +64,4 @@ static inline char* get_debug_level(int lvl)
         ERR("%s: %s", msg, errbuf); \
     } while (0)
 
-static inline char *dup_keyname(const char *name)
-{
-    if (name)
-        name = strrchr(name, ';');
-    return name ? strdup(name +1) : NULL;
-}
-static inline void copy_spaced_name(const char *name,
-            unsigned char *ck_desc, size_t ck_len)
-{
-    size_t slen = strlen(name);
-    memset(ck_desc, ' ', ck_len);
-    memcpy(ck_desc, name, MIN(slen, ck_len));
-}
-
-ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
-        __attribute__((visibility("default")));
-
 #endif
