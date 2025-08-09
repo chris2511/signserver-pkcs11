@@ -17,7 +17,10 @@ and release builds (signed with official HSM-backed keys provided by the Keyfact
 The release build then only differs by the content of the INI file.
 
 The workers and software keys are configured by an INI file. The object name is the
-section name. A typical PKCS#11 URI looks like: `pkcs11:object=default-EC` for the default-EC section
+section name. A typical PKCS#11 URI looks like: `pkcs11:object=default-EC` for the default-EC section. All objects in the slot have the same name.
+Applications like `openssl x509 ...` and `openssl pkey ...` will automatically pick
+the right type, but `opensc --slot 1 -y pubkey --label server-ec` needs the type
+to pick the correct one.
 
 ## INI file configuration
 
@@ -30,6 +33,7 @@ The keys are case-insensitive.
 ```ini
 [default]
 SignServer = true
+# The library will perfrem a bugus signature to extract the certificate from the answer
 Certificate = Signserver.pem
 AuthCert = SignServer_Client.pfx
 AuthPass = pass
@@ -48,6 +52,7 @@ url = https://nucci.tucht
 
 [default-soft]
 SignServer = true
+# Certificate file must also contain the private key unencrypted
 Certificate = Gandalf_der_Graue.pem
 ```
 
@@ -74,10 +79,12 @@ export SIGNSERVER_PKCS11_DEBUG=1
 ```
 
 `SIGNSERVER_PKCS11_INI` points to the location of the configuration file
+
 `SIGNSERVER_PKCS11_DEBUG` enables debugging:
 
- 1) Nothing, not even fatal errors
- 2) Errors, usually when returning other results than CKR\_OK
+ 0) Nothing, not even fatal errors (default when unset)
+ 1) Errors, usually when returning other results than CKR\_OK
+ 2) Informational messages
  3) Debugging
  4) More debugging
 
@@ -100,6 +107,7 @@ export SIGNSERVER_PKCS11_DEBUG=1
 ```
 
 openssl pkey -engine pkcs11 -inform ENGINE -pubin -in "pkcs11:object=default-ec"
+
 openssl dgst -engine pkcs11 -keyform ENGINE -sign "pkcs11:object=default" -out signature.bin -sha256
 
 # OpenSSL with provider
