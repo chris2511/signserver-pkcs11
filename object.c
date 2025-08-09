@@ -88,22 +88,20 @@ static ck_rv_t x509_collect_attributes(struct object *obj, const X509 *cert)
     return CKR_OK;
 }
 
-ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert)
+ck_rv_t object_new(struct slot *slot, struct object *obj, enum object_type type)
 {
     obj->type = type;
     obj->object_id = (ck_object_handle_t)type +OBJ_ID_OFFSET;
     object_init(obj);
 
     struct attr *attr = &obj->attributes;
-    const EVP_PKEY *key = X509_get_pubkey(cert);
+    const EVP_PKEY *key = X509_get0_pubkey(slot->certificate);
 
     if (!key) {
         OSSL_ERR("Cannot get public key from certificate");
         return CKR_HOST_MEMORY;
     }
-    obj->keytype = EVP_PKEY_base_id(key);
-
-    DBG("Type: %s Keytype: %d", object_type_to_desc(type), obj->keytype);
+    DBG("Type: %s Keytype: %d", object_type_to_desc(type), slot->keytype);
     switch (type) {
         case OBJECT_TYPE_PUBLIC_KEY:
             key_collect_key_attributes(obj, key);
@@ -122,12 +120,12 @@ ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert)
             ATTR_ADD_BOOL(attr, CKA_COPYABLE, 0);
             break;
         case OBJECT_TYPE_CERTIFICATE:
-            x509_collect_attributes(obj, cert);
+            x509_collect_attributes(obj, slot->certificate);
             return CKR_OK;
         default:
             return CKR_GENERAL_ERROR;
     }
-    switch (obj->keytype) {
+    switch (slot->keytype) {
         case EVP_PKEY_RSA:
             ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
             break;

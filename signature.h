@@ -29,7 +29,7 @@ ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
         unsigned char *signature, unsigned long *signature_len);
 void signature_op_free(struct signature_op *op);
 
-ck_rv_t key_get_mechanism(struct object *obj,
+ck_rv_t key_get_mechanism(struct slot *slot,
         ck_mechanism_type_t *mechanism_list, unsigned long *count);
 ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key);
 

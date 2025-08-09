@@ -22,6 +22,7 @@ struct slot {
     /* Key management */
     X509 *certificate;
     EVP_PKEY *private;
+    int keytype; // EVP_PKEY_base_id
     const char *auth_cert;
     const char *auth_pass;
     const char *worker;

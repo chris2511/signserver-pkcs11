@@ -229,7 +229,7 @@ ck_rv_t signature_op_final(struct signature_op *sig, const struct slot *slot,
         swsign(sig, slot, hashnid, md, md_len, signature, signature_len) :
         plainsign(sig, slot, hashnid, md, md_len, signature, signature_len);
 
-    if (slot->objects[0].keytype == EVP_PKEY_EC) {
+    if (slot->keytype == EVP_PKEY_EC) {
         const unsigned char *ptr = signature;
         // Need to convert the ECDSA_SIG to concatenated r+s format
         // signature was large enough to hold the ECDSA_SIG,
@@ -282,13 +282,13 @@ const ck_mechanism_type_t ec_mechs[] = {
 };
 const unsigned long n_ec_mechs = sizeof ec_mechs / sizeof ec_mechs[0];
 
-ck_rv_t key_get_mechanism(struct object *obj,
+ck_rv_t key_get_mechanism(struct slot *slot,
         ck_mechanism_type_t *mechanism_list, unsigned long *count)
 {
     unsigned long n_mechs;
     const ck_mechanism_type_t *mechs;
 
-    switch (obj->keytype) {
+    switch (slot->keytype) {
         case EVP_PKEY_RSA:
             mechs = rsa_mechs;
             n_mechs = n_rsa_mechs;
@@ -298,7 +298,7 @@ ck_rv_t key_get_mechanism(struct object *obj,
             n_mechs = n_ec_mechs;
             break;
         default:
-            ERR("Unsupported key type %d", obj->keytype);
+            ERR("Unsupported key type %d", slot->keytype);
             return CKR_KEY_TYPE_INCONSISTENT;
     }
     if (mechanism_list) {
@@ -365,7 +365,7 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
 {
     struct attr *attr = &obj->attributes;
     DBG("Key: %lu", obj->object_id);
-    if (obj->keytype == EVP_PKEY_RSA) {
+    if (EVP_PKEY_base_id(key) == EVP_PKEY_RSA) {
         struct storage *store;
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_RSA);
         ATTR_ADD_ULONG(attr, CKA_MODULUS_BITS, EVP_PKEY_bits(key));
@@ -376,7 +376,7 @@ ck_rv_t key_collect_key_attributes(struct object *obj, const EVP_PKEY *key)
         ATTR_ADD_STORAGE(attr, CKA_PUBLIC_EXPONENT, store);
         return CKR_OK;
     }
-    if (obj->keytype == EVP_PKEY_EC) {
+    if (EVP_PKEY_base_id(key) == EVP_PKEY_EC) {
         ATTR_ADD_ULONG(attr, CKA_KEY_TYPE, CKK_EC);
         ATTR_ADD(attr, CKA_ALLOWED_MECHANISMS, ec_mechs, sizeof ec_mechs, 0);
 

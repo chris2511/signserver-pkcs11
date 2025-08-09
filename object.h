@@ -23,13 +23,12 @@ enum object_type {
 struct object {
     ck_object_handle_t object_id;
     enum object_type type;
-    int keytype; // EVP_PKEY_base_id
     struct attr attributes;
 };
 
 struct slot;
 
-ck_rv_t object_new(struct object *obj, enum object_type type, X509 *cert);
+ck_rv_t object_new(struct slot *slot, struct object *obj, enum object_type type);
 void object_free(struct object *obj);
 int object_match_attributes(const struct object *obj, struct ck_attribute *templ, unsigned long n);
 const char *object_type_to_desc(enum object_type type);

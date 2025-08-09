@@ -425,7 +425,7 @@ ck_rv_t C_GetMechanismList(ck_slot_id_t slot_id,
     CHECKARG(count);
 
     DBG("End: Slot ID %lu max mechanisms: %ld", slot_id, *count);
-    return key_get_mechanism(slots[slot_id].objects, mechanism_list, count);
+    return key_get_mechanism(slots +slot_id, mechanism_list, count);
 }
 
 ck_rv_t C_GetMechanismInfo(ck_slot_id_t slot_id,

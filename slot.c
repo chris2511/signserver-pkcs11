@@ -73,6 +73,12 @@ static int slot_init(struct slot *slot)
     if (slot->private)
         INFO("Private software key loaded for slot '%s'", slot->name);
 
+    const EVP_PKEY *key = X509_get0_pubkey(slot->certificate);
+    if (!key) {
+        OSSL_ERR("Cannot get public key from certificate");
+        return CKR_FUNCTION_FAILED;
+    }
+    slot->keytype = EVP_PKEY_base_id(key);
     return CKR_OK;
 }
 
@@ -81,8 +87,7 @@ static int slot_init_objects(struct slot *slot)
     ck_rv_t ret = CKR_OK;
 
     for (int i = 0; i < OBJECT_TYPE_MAX; i++) {
-        ret = object_new(slot->objects + i,
-            (enum object_type)i, slot->certificate);
+        ret = object_new(slot, slot->objects + i, (enum object_type)i );
         struct attr *attr = &slot->objects[i].attributes;
         if (ret != CKR_OK) {
             ERR("Failed to create object %d for slot '%s': %lu", i, slot->name, ret);
