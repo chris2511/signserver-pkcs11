@@ -101,6 +101,8 @@ ck_rv_t object_new(struct slot *slot, struct object *obj, enum object_type type)
         OSSL_ERR("Cannot get public key from certificate");
         return CKR_HOST_MEMORY;
     }
+    ATTR_ADD_BOOL(attr, CKA_DERIVE, 0);
+    ATTR_ADD_BOOL(attr, CKA_LOCAL, slot->private == NULL ? 1 : 0);
     DBG("Type: %s Keytype: %d", object_type_to_desc(type), slot->keytype);
     switch (type) {
         case OBJECT_TYPE_PUBLIC_KEY:
@@ -110,6 +112,7 @@ ck_rv_t object_new(struct slot *slot, struct object *obj, enum object_type type)
             ATTR_ADD_BOOL(attr, CKA_VERIFY, 1);
             ATTR_ADD_BOOL(attr, CKA_EXTRACTABLE, 1);
             ATTR_ADD_BOOL(attr, CKA_COPYABLE, 1);
+            ATTR_ADD_BOOL(attr, CKA_WRAP, 0);
             break;
         case OBJECT_TYPE_PRIVATE_KEY:
             key_collect_key_attributes(obj, key);
@@ -118,6 +121,11 @@ ck_rv_t object_new(struct slot *slot, struct object *obj, enum object_type type)
             ATTR_ADD_BOOL(attr, CKA_SIGN, 1);
             ATTR_ADD_BOOL(attr, CKA_NEVER_EXTRACTABLE, 1);
             ATTR_ADD_BOOL(attr, CKA_COPYABLE, 0);
+            ATTR_ADD_BOOL(attr, CKA_UNWRAP, 0);
+            ATTR_ADD_BOOL(attr, CKA_DERIVE, 0);
+            ATTR_ADD_BOOL(attr, CKA_SENSITIVE, 1);
+            ATTR_ADD_BOOL(attr, CKA_ALWAYS_SENSITIVE, slot->private == NULL ? 0 : 1);
+            ATTR_ADD_BOOL(attr, CKA_EXTRACTABLE, 0);
             break;
         case OBJECT_TYPE_CERTIFICATE:
             x509_collect_attributes(obj, slot->certificate);
