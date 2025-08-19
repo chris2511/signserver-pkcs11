@@ -22,6 +22,34 @@ Applications like `openssl x509 ...` and `openssl pkey ...` will automatically p
 the right type, but `pkcs11-tool --slot 1 --type pubkey --label server-ec`
 needs the type to pick the correct one.
 
+# Build instructions and dependencies
+
+## Dependencies
+
+- CMake >= 3.13
+- GCC or Clang
+- OpenSSL development packages (libssl-dev)
+- libcurl development packages (libcurl4-openssl-dev)
+- iniparser library from https://github.com/ndevilla/iniparser (package 'libiniparser-dev')
+
+## Build
+
+```bash
+git clone https://github.com/chris2511/signserver-pkcs11.git
+cd signserver-pkcs11
+cmake .
+make
+```
+
+The module will be built as `signserver-pkcs11.so` in the `build/` directory.
+
+Installation (optional):
+```bash
+sudo make install
+```
+
+See the file `CMakeLists.txt` for details about dependencies.
+
 ## INI file configuration
 
 The library is configured via an INI file.
