@@ -6,7 +6,6 @@
  */
 
 #include "slot.h"
-#include "link.h"
 #include "object.h"
 #include "signature.h"
 

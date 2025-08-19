@@ -56,20 +56,20 @@ static inline const char* get_debug_level(int lvl)
     return "";
 }
 
-#define _DBG(lvl, fmt, ...) \
+#define _DBG(lvl, ...) \
     while (debug_level >= (lvl)) { \
         fprintf(stderr, "%s%s %s%s%s%s:%d %s%s() %s", \
             get_debug_color(lvl), get_debug_level(lvl), \
             COL_MAGENTA, __FILE__, COL_GREEN, COL_BOLD, \
              __LINE__, COL_BLUE, __func__, COL_RESET); \
-        fprintf(stderr, fmt, ##__VA_ARGS__); \
+        fprintf(stderr, __VA_ARGS__); \
         fputs("\n", stderr); \
         break; \
     }
-#define ERR(fmt, ...) _DBG(1, fmt, ##__VA_ARGS__)
-#define INFO(fmt, ...) _DBG(2, fmt, ##__VA_ARGS__)
-#define DBG(fmt, ...) _DBG(3, fmt, ##__VA_ARGS__)
-#define DBG2(fmt, ...) _DBG(4, fmt, ##__VA_ARGS__)
+#define ERR(...) _DBG(1, __VA_ARGS__)
+#define INFO(...) _DBG(2, __VA_ARGS__)
+#define DBG(...) _DBG(3, __VA_ARGS__)
+#define DBG2(...) _DBG(4, __VA_ARGS__)
 
 #define OSSL_ERR(msg) \
     do { \

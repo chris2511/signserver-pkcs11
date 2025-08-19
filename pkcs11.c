@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include <openssl/err.h>
 #include <openssl/provider.h>
@@ -548,6 +549,7 @@ ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
     }
     debug_level = lvl;
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
     static struct ck_function_list_3_0 pkcs11_function_list = {
 

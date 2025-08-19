@@ -29,5 +29,5 @@ add_library(signserver-pkcs11 MODULE
     storage.c storage.h
 )
 
-target_link_libraries(signserver-pkcs11 iniparser OpenSSL::Crypto CURL::libcurl)
+target_link_libraries(signserver-pkcs11 ${INIPARSER} OpenSSL::Crypto CURL::libcurl)
 install(TARGETS signserver-pkcs11 DESTINATION ${CMAKE_INSTALL_LIBDIR})
