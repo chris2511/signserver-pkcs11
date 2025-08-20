@@ -1,0 +1,75 @@
+name: SignServer PKCS11 Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Start SignServer
+      run: |
+        docker run -d --name signserver \
+          -p 8080:8080 -p 8443:8443 \
+          -e DATABASE_JDBC_URL="jdbc:h2:mem:signserverdb;DB_CLOSE_DELAY=-1" \
+          -e TLS_SETUP_ENABLED=true \
+          -v ${{ github.workspace }}/test/SignServer_TLS-CA.pem:/mnt/external/secrets/tls/cas/ManagementCA.crt:ro \
+          -v ${{ github.workspace }}/test/SignServer.properties:/mnt/external/SignServer.properties:ro \
+          keyfactor/signserver-ce:latest
+
+    - name: Install dependencies
+      run: |
+        sudo rm -f /var/lib/man-db/auto-update
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake ninja-build \
+          libengine-pkcs11-openssl pkcs11-provider \
+          libssl-dev \
+          libcurl4-openssl-dev \
+          libiniparser-dev \
+          curl jq
+
+    - name: Build PKCS11 library
+      run: |
+        cmake -S . -B build -G Ninja -DCMAKE_INSTALL_PREFIX=/usr
+        cmake --build build
+        sudo cmake --install build
+
+    - name: Wait for SignServer
+      run: |
+        echo "Waiting for SignServer to be ready..."
+        for i in `seq 1 50`; do
+          curl -f http://localhost:8080/signserver/healthcheck/signserverhealth && break
+          sleep 2
+        done
+
+    - name: Configure SignServer Workers
+      run: |
+        docker exec signserver /opt/signserver/bin/signserver setproperties /mnt/external/SignServer.properties
+        docker exec signserver /opt/signserver/bin/signserver reload all
+
+    - name: Run PKCS11 tests
+      run: sh test/test.sh > build/test.log 2>&1
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: build/test.log
+
+    - name: Upload PKCS11 library
+      uses: actions/upload-artifact@v4
+      with:
+        name: pkcs11-library
+        path: |
+          build/signserver-pkcs11.so
+          build/signserver-pkcs11.module

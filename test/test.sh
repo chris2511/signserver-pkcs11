@@ -4,8 +4,9 @@ cd "$(dirname "$0")"
 TMP_DIR="tmp"
 
 BUILD_DIR="../build"
+export OPENSSL_CONF=openssl.cnf
 export SIGNSERVER_PKCS11_INI="signserver-pkcs11.ini"
-export SIGNSERVER_PKCS11_DEBUG=1
+export SIGNSERVER_PKCS11_DEBUG=2
 # For the pkcs11-provider
 export PKCS11_PROVIDER_MODULE="${BUILD_DIR}/signserver-pkcs11.so"
 # For the libp11 Engine
