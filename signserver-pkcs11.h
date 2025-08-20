@@ -9,6 +9,7 @@
 #define _SIGNSERVER_PKCS11_H 1
 
 #define CRYPTOKI_GNU
+#define CRYPTOKI_EXPORTS
 #include "pkcs11.h"
 
 #include <openssl/err.h>

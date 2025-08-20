@@ -77,13 +77,13 @@ static inline void copy_spaced_name(const char *name,
 {
     size_t slen = strlen(name);
     memset(ck_desc, ' ', ck_len);
-    memcpy(ck_desc, name, MIN(slen, ck_len));
+    memcpy(ck_desc, name, slen < ck_len ? slen : ck_len);
 }
 
-ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
+ck_rv_t CK_SPEC C_GetFunctionList(struct ck_function_list **function_list)
         __attribute__((visibility("default")));
 
-ck_rv_t C_Initialize(void *init)
+ck_rv_t CK_SPEC C_Initialize(void *init)
 {
     (void)init;
     DBG("Start");
@@ -120,7 +120,7 @@ ck_rv_t C_Initialize(void *init)
     return CKR_OK;
 }
 
-ck_rv_t C_Finalize(void *reserved)
+ck_rv_t CK_SPEC C_Finalize(void *reserved)
 {
     DBG("Start")
     if (reserved)
@@ -138,7 +138,7 @@ ck_rv_t C_Finalize(void *reserved)
     return CKR_OK;
 }
 
-ck_rv_t C_GetInfo(struct ck_info *info)
+ck_rv_t CK_SPEC C_GetInfo(struct ck_info *info)
 {
     DBG("Start")
     INITIALIZED;
@@ -148,7 +148,7 @@ ck_rv_t C_GetInfo(struct ck_info *info)
     return CKR_OK;
 }
 
-ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
+ck_rv_t CK_SPEC C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
               unsigned long *count)
 {
     (void)token_present;
@@ -172,7 +172,7 @@ ck_rv_t C_GetSlotList(unsigned char token_present, ck_slot_id_t *slot_list,
     return CKR_OK;
 }
 
-ck_rv_t C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
+ck_rv_t CK_SPEC C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
 {
     DBG("Start: Slot ID %lu", slot_id);
     INITIALIZED;
@@ -188,7 +188,7 @@ ck_rv_t C_GetSlotInfo(ck_slot_id_t slot_id, struct ck_slot_info *info)
     return CKR_OK;
 }
 
-ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
+ck_rv_t CK_SPEC C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
 {
     DBG("Start: Slot ID %lu", slot_id);
     INITIALIZED;
@@ -226,7 +226,7 @@ ck_rv_t C_GetTokenInfo(ck_slot_id_t slot_id, struct ck_token_info *info)
     return CKR_OK;
 }
 
-ck_rv_t C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
+ck_rv_t CK_SPEC C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
                        void *application, ck_notify_t notify,
                        ck_session_handle_t *session)
 {
@@ -253,7 +253,7 @@ ck_rv_t C_OpenSession(ck_slot_id_t slot_id, ck_flags_t flags,
     return CKR_SESSION_COUNT;
 }
 
-ck_rv_t C_CloseSession(ck_session_handle_t session)
+ck_rv_t CK_SPEC C_CloseSession(ck_session_handle_t session)
 {
     DBG("Start Session %lu", session);
     INITIALIZED;
@@ -263,7 +263,7 @@ ck_rv_t C_CloseSession(ck_session_handle_t session)
     return CKR_OK;
 }
 
-ck_rv_t C_CloseAllSessions(ck_slot_id_t slot_id)
+ck_rv_t CK_SPEC C_CloseAllSessions(ck_slot_id_t slot_id)
 {
     DBG("Start Slot ID %lu", slot_id);
     INITIALIZED;
@@ -277,7 +277,7 @@ ck_rv_t C_CloseAllSessions(ck_slot_id_t slot_id)
     return CKR_OK;
 }
 
-ck_rv_t C_GetSessionInfo(ck_session_handle_t session, struct ck_session_info *info)
+ck_rv_t CK_SPEC C_GetSessionInfo(ck_session_handle_t session, struct ck_session_info *info)
 {
     DBG("Start: Session %lu", session);
     INITIALIZED;
@@ -295,7 +295,7 @@ ck_rv_t C_GetSessionInfo(ck_session_handle_t session, struct ck_session_info *in
     return CKR_OK;
 }
 
-ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_FindObjectsInit(ck_session_handle_t session,
                           struct ck_attribute *templ,
                           unsigned long count)
 {
@@ -326,7 +326,7 @@ ck_rv_t C_FindObjectsInit(ck_session_handle_t session,
     return CKR_OK;
 }
 
-ck_rv_t C_FindObjects(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_FindObjects(ck_session_handle_t session,
     ck_object_handle_t *object,
     unsigned long max_object_count,
     unsigned long *object_count)
@@ -352,7 +352,7 @@ ck_rv_t C_FindObjects(ck_session_handle_t session,
     return CKR_OK;
 }
 
-ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
+ck_rv_t CK_SPEC C_FindObjectsFinal(ck_session_handle_t session)
 {
     DBG("Start: Session %lu", session);
     INITIALIZED;
@@ -368,7 +368,7 @@ ck_rv_t C_FindObjectsFinal(ck_session_handle_t session)
     return CKR_OK;
 }
 
-ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_GetAttributeValue(ck_session_handle_t session,
     ck_object_handle_t object, struct ck_attribute *templ, unsigned long count)
 {
     DBG("Start: Session: %lu Object: %lu Max attributes: %lu",
@@ -386,7 +386,7 @@ ck_rv_t C_GetAttributeValue(ck_session_handle_t session,
     return attr_fill_template(&obj->attributes, templ, count);
 }
 
-ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
+ck_rv_t CK_SPEC C_Login(ck_session_handle_t session, ck_user_type_t user_type,
     unsigned char *pin, unsigned long pin_len)
 {
     DBG("Start: Session: %lu User type: %lu Pin len: %lu",
@@ -412,7 +412,7 @@ ck_rv_t C_Login(ck_session_handle_t session, ck_user_type_t user_type,
     return slot_load_auth_blob(slot, pass);
 }
 
-ck_rv_t C_Logout(ck_session_handle_t session)
+ck_rv_t CK_SPEC C_Logout(ck_session_handle_t session)
 {
     DBG("Start: Session: %lu", session);
     INITIALIZED;
@@ -430,7 +430,7 @@ ck_rv_t C_Logout(ck_session_handle_t session)
     return CKR_OK;
 }
 
-ck_rv_t C_GetMechanismList(ck_slot_id_t slot_id,
+ck_rv_t CK_SPEC C_GetMechanismList(ck_slot_id_t slot_id,
         ck_mechanism_type_t *mechanism_list, unsigned long *count)
 {
     DBG("Start")
@@ -442,7 +442,7 @@ ck_rv_t C_GetMechanismList(ck_slot_id_t slot_id,
     return key_get_mechanism(slots +slot_id, mechanism_list, count);
 }
 
-ck_rv_t C_GetMechanismInfo(ck_slot_id_t slot_id,
+ck_rv_t CK_SPEC C_GetMechanismInfo(ck_slot_id_t slot_id,
         ck_mechanism_type_t type, struct ck_mechanism_info *info)
 {
     DBG("Start: Slot ID %lu Mechanism: %lu", slot_id, type);
@@ -454,7 +454,7 @@ ck_rv_t C_GetMechanismInfo(ck_slot_id_t slot_id,
     return CKR_OK;
 }
 
-ck_rv_t C_SignInit(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_SignInit(ck_session_handle_t session,
         struct ck_mechanism *mechanism, ck_object_handle_t key_id)
 {
     DBG("Start: Session: %lu Key: %lu", session, key_id);
@@ -478,7 +478,7 @@ ck_rv_t C_SignInit(ck_session_handle_t session,
     return signature_op_init(&sess->signature);
 }
 
-ck_rv_t C_SignUpdate(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_SignUpdate(ck_session_handle_t session,
         unsigned char *part, unsigned long part_len)
 {
     DBG("Start")
@@ -497,7 +497,7 @@ ck_rv_t C_SignUpdate(ck_session_handle_t session,
     return signature_op_update(&sess->signature, part, part_len);
 }
 
-ck_rv_t C_SignFinal(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_SignFinal(ck_session_handle_t session,
         unsigned char *signature, unsigned long *signature_len)
 {
     DBG("Start: Session: %lu", session);
@@ -519,7 +519,7 @@ ck_rv_t C_SignFinal(ck_session_handle_t session,
     return ret;
 }
 
-ck_rv_t C_Sign(ck_session_handle_t session,
+ck_rv_t CK_SPEC C_Sign(ck_session_handle_t session,
         unsigned char *data, unsigned long data_len,
         unsigned char *signature, unsigned long *signature_len)
 {
@@ -531,7 +531,7 @@ ck_rv_t C_Sign(ck_session_handle_t session,
     return r;
 }
 
-ck_rv_t C_Unsupported(void)
+ck_rv_t CK_SPEC C_Unsupported(void)
 {
     INITIALIZED;
     return CKR_FUNCTION_NOT_SUPPORTED;
@@ -539,7 +539,7 @@ ck_rv_t C_Unsupported(void)
 #define C_SUPPORTED(namd) . namd = namd
 #define C_UNSUPPORTED(name) . name = (CK_ ## name) C_Unsupported
 
-ck_rv_t C_GetFunctionList(struct ck_function_list **function_list)
+ck_rv_t CK_SPEC C_GetFunctionList(struct ck_function_list **function_list)
 {
     const char *debug = getenv("SIGNSERVER_PKCS11_DEBUG");
     int lvl = debug ? atoi(debug) : 0;

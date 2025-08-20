@@ -40,7 +40,7 @@ ck_rv_t attr_add(struct attr *attr, ck_attribute_type_t type,
         if (!attr->attributes)
             return CKR_HOST_MEMORY;
     }
-    DBG2("Add Attribute[%lu] 0x%lx %lu", attr->count, type, value_len);
+    DBG2("Add Attribute[%lu] 0x%lx %zu", attr->count, type, value_len);
     struct ck_attribute *a = attr->attributes + attr->count;
     a->type = type;
     if (attr->count >= sizeof(attr->alloced_bitfield) * 8)

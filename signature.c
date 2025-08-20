@@ -178,7 +178,7 @@ static ck_rv_t swsign(struct signature_op *sig, const struct slot *slot, int has
         EVP_PKEY_CTX_free(ctx);
         return CKR_GENERAL_ERROR;
     }
-    if (EVP_PKEY_sign(ctx, signature, signature_len, md, md_len) <= 0) {
+    if (EVP_PKEY_sign(ctx, signature, (size_t*)signature_len, md, md_len) <= 0) {
         OSSL_ERR("EVP_PKEY_sign failed");
         EVP_PKEY_CTX_free(ctx);
         return CKR_FUNCTION_FAILED;
