@@ -1,0 +1,2 @@
+
+module: @CMAKE_INSTALL_PREFIX@/@CMAKE_INSTALL_LIBDIR@/signserver-pkcs11.so

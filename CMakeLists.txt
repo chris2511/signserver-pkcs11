@@ -14,6 +14,8 @@ find_library(INIPARSER NAMES iniparser)
 find_path(INIPARSER_INCLUDE_DIR NAMES iniparser.h PATH_SUFFIXES iniparser)
 include_directories(${INIPARSER_INCLUDE_DIR})
 
+configure_file(signserver-pkcs11.module.in signserver-pkcs11.module)
+
 set(CMAKE_SHARED_MODULE_PREFIX "")
 add_compile_options(-Wall -Wextra -Wpedantic -Werror -fvisibility=hidden)
 add_compile_options(-fmacro-prefix-map=${PROJECT_SOURCE_DIR}=.)
@@ -31,3 +33,4 @@ add_library(signserver-pkcs11 MODULE
 
 target_link_libraries(signserver-pkcs11 ${INIPARSER} OpenSSL::Crypto CURL::libcurl)
 install(TARGETS signserver-pkcs11 DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/signserver-pkcs11.module DESTINATION ${CMAKE_INSTALL_DATADIR}/p11-kit/modules)
