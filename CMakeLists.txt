@@ -6,11 +6,19 @@ project(signserver-pkcs11
     LANGUAGES C
 )
 
+option(ENABLE_STATIC_LIBS "Link iniparser, cURL and OpenSSL statically")
+
+if(ENABLE_STATIC_LIBS)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    set(CURL_USE_STATIC_LIBS TRUE)
+endif()
+
 include(GNUInstallDirs)
 
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_library(INIPARSER NAMES iniparser)
+find_library(INIPARSER NAMES libiniparser.a)
 find_path(INIPARSER_INCLUDE_DIR NAMES iniparser.h PATH_SUFFIXES iniparser)
 include_directories(${INIPARSER_INCLUDE_DIR})
 
@@ -29,7 +37,7 @@ add_library(signserver-pkcs11 MODULE
     storage.c storage.h
 )
 
-target_link_libraries(signserver-pkcs11 ${INIPARSER} OpenSSL::Crypto CURL::libcurl)
+target_link_libraries(signserver-pkcs11 ${STATIC_FLAGS} ${INIPARSER} OpenSSL::Crypto CURL::libcurl)
 
 # file(GENERATE) after the target was defined
 file(GENERATE OUTPUT signserver-pkcs11.module
