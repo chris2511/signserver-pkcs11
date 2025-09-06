@@ -19,7 +19,7 @@ mkdir -p ${TMP_DIR}
 datafile="${TMP_DIR}/signdata.txt"
 cat $SIGNSERVER_PKCS11_INI > ${datafile}
 
-for obj in server-rsa server-ec soft-rsa soft-ec; do
+for obj in server-rsa server-4096 server-ec soft-rsa soft-ec; do
   openssl x509 -pubkey -nocert -in "${obj}.pem" -out "${TMP_DIR}/${obj}.pub"
   openssl x509 -in "${obj}.pem" -out "${TMP_DIR}/${obj}.crt" # Remove private key
 
