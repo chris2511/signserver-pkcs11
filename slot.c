@@ -234,5 +234,6 @@ ck_rv_t slot_scan(dictionary *ini, const char *filename,
 
 int slot_login_required(const struct slot *slot)
 {
-    return !slot->auth_blob.data && !slot->private;
+    return !slot->auth_blob.data && !slot->private &&
+           slot_get_ini_entry(slot, "AuthCert", NULL);
 }
