@@ -247,7 +247,9 @@ X509 *retrieve_certificate(const struct slot *slot)
     unsigned char cert[2048];
     const unsigned char *p = cert;
     unsigned long cert_len = (unsigned long)sizeof cert;
-    unsigned char md[SHA256_DIGEST_LENGTH] = {0};
+    unsigned char md[SHA256_DIGEST_LENGTH];
+
+    memset(md, 0xa5, sizeof md);
 
     BIO *bio = BIO_new(BIO_s_mem());
     if (!bio) {
