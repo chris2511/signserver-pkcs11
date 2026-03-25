@@ -135,20 +135,25 @@ static ck_rv_t run_curl_ossl_ctx(const struct slot *slot, int hashnid,
     }
     struct curl_slist *headers = curl_slist_append(NULL, "Content-Type: application/json");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    char request_json[4096];
+    char request_json[4096], sigalgo[64] = "";
     unsigned char b64[EVP_MAX_MD_SIZE *4 / 3 + 4];
     EVP_EncodeBlock(b64, md, md_len);
 
+    const char *signserver_algo = mechanism_to_signserver_algo(mechanism);
+    if (strlen(signserver_algo) > 0) {
+        snprintf(sigalgo, sizeof sigalgo, "\"SIGNATUREALGORITHM\": \"%s\",",
+                 signserver_algo);
+    }
     snprintf(request_json, sizeof request_json, "{"
       "\"metaData\": {"
         "\"CLIENTSIDE_HASHDIGESTALGORITHM\": \"%s\","
-        "\"SIGNATUREALGORITHM\": \"%s\","
+        "%s"
         "\"USE_CLIENTSUPPLIED_HASH\": true"
       "},"
       "\"encoding\": \"BASE64\","
       "\"data\": \"%s\""
     "}",
-    OBJ_nid2sn(hashnid), mechanism_to_signserver_algo(mechanism), b64);
+    OBJ_nid2sn(hashnid), sigalgo, b64);
 
     DBG2("Request JSON: '%s'", request_json);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
@@ -242,7 +247,9 @@ X509 *retrieve_certificate(const struct slot *slot)
     unsigned char cert[2048];
     const unsigned char *p = cert;
     unsigned long cert_len = (unsigned long)sizeof cert;
-    unsigned char md[SHA256_DIGEST_LENGTH] = {0};
+    unsigned char md[SHA256_DIGEST_LENGTH];
+
+    memset(md, 0xa5, sizeof md);
 
     BIO *bio = BIO_new(BIO_s_mem());
     if (!bio) {
