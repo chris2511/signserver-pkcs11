@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.0)
 
 project(signserver-pkcs11
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "PKCS#11 library for Keyfactor SignServer"
     LANGUAGES C
 )
