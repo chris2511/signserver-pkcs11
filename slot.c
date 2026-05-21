@@ -70,20 +70,37 @@ ck_rv_t slot_load_auth_blob(struct slot *slot, const char *auth_pass)
     PKCS12 *p12 = d2i_PKCS12_fp(fp, NULL);
     X509 *cert = NULL;
     EVP_PKEY *pkey = NULL;
-    int ret = PKCS12_parse(p12, auth_pass, &pkey, &cert, NULL);
+    STACK_OF(X509) *ca_chain = NULL;
+    int ret = PKCS12_parse(p12, auth_pass, &pkey, &cert, &ca_chain);
     PKCS12_free(p12);
     if (!ret) {
         rewind(fp);
         cert = PEM_read_X509(fp, NULL, NULL, NULL);
+        if (cert) {
+            ca_chain = sk_X509_new_null();
+            X509 *chain_cert;
+            while ((chain_cert = PEM_read_X509(fp, NULL, NULL, NULL)) != NULL)
+                sk_X509_push(ca_chain, chain_cert);
+        }
         rewind(fp);
         pkey = PEM_read_PrivateKey(fp, NULL, pw_cb, (char*)auth_pass);
     }
-    DBG("Cert: %d, Key: %d", !!cert, !!pkey);
+    DBG("Cert: %d, Key: %d, Chain: %d", !!cert, !!pkey,
+        ca_chain ? sk_X509_num(ca_chain) : 0);
     fclose(fp);
     if (cert && pkey) {
         BIO *bio = BIO_new(BIO_s_mem());
         if (bio) {
-            if (PEM_write_bio_X509(bio, cert) &&
+            int ok = PEM_write_bio_X509(bio, cert);
+            if (ok && ca_chain) {
+                for (int i = 0; i < sk_X509_num(ca_chain); i++) {
+                    if (!PEM_write_bio_X509(bio, sk_X509_value(ca_chain, i))) {
+                        ok = 0;
+                        break;
+                    }
+                }
+            }
+            if (ok &&
                 PEM_write_bio_PrivateKey(bio, pkey, NULL, NULL, 0, NULL, NULL))
             {
                 unsigned char *data;
@@ -102,6 +119,8 @@ ck_rv_t slot_load_auth_blob(struct slot *slot, const char *auth_pass)
     } else if (auth_pass) {
         ERR("Failed to load private key from '%s'", auth_cert);
     }
+    if (ca_chain)
+        sk_X509_pop_free(ca_chain, X509_free);
     if (cert)
         X509_free(cert);
     if (pkey)
